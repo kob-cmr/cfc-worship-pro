@@ -1,20 +1,36 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { KEYS, transposeNote, transposeChordLine, isChordLine } from "./shared.js";
 
+// displayMode: "lyrics" | "chords" | "drums"
+// Key badge always shows the transposed letter key (never NNS)
+
 function SongDisplay({ song, useFlats, nashville, displayMode }) {
   const semitones = song.semitones || 0;
-  const rootForNashville = transposeNote(song.key.replace("m",""), semitones, useFlats);
-  const effectiveKey = rootForNashville + (song.key.includes("m") && !song.key.includes("maj") ? "m" : "");
-  const lines = song.content.split("\n").map((line, i) => {
-    const chord = isChordLine(line);
-    if (chord) {
-      if (displayMode === "lyrics") return null;
-      const t = transposeChordLine(line, semitones, useFlats, nashville, rootForNashville);
-      return <div key={i} className="chord-line">{t || "\u00A0"}</div>;
-    }
-    if (displayMode === "chords") return null;
-    return <div key={i} className="lyric-line">{line || "\u00A0"}</div>;
-  });
+  const rootKey = transposeNote(song.key.replace("m",""), semitones, useFlats);
+  const effectiveKey = rootKey + (song.key.includes("m") && !song.key.includes("maj") ? "m" : "");
+
+  // Chords mode: show chords + lyrics interleaved (standard chord chart)
+  const renderChords = () =>
+    (song.chords || "").split("\n").map((line, i) => {
+      if (isChordLine(line)) {
+        const t = transposeChordLine(line, semitones, useFlats, nashville, rootKey);
+        return <div key={i} className="chord-line">{t || "\u00A0"}</div>;
+      }
+      return <div key={i} className="lyric-line">{line || "\u00A0"}</div>;
+    });
+
+  // Lyrics mode: plain lyrics only
+  const renderLyrics = () =>
+    (song.lyrics || "").split("\n").map((line, i) =>
+      <div key={i} className="lyric-line">{line || "\u00A0"}</div>
+    );
+
+  // Drums mode: drum notes
+  const renderDrums = () =>
+    (song.drums || "").split("\n").map((line, i) =>
+      <div key={i} className="drum-line">{line || "\u00A0"}</div>
+    );
+
   return (
     <div className="song-display">
       <div className="song-display-header">
@@ -22,123 +38,35 @@ function SongDisplay({ song, useFlats, nashville, displayMode }) {
           <div className="song-display-title">{song.title}</div>
           <div className="song-display-artist">{song.artist}</div>
         </div>
-        <div className="key-badge">{nashville ? "NNS" : effectiveKey}</div>
-      </div>
-      <div className="song-content">{lines}</div>
-    </div>
-  );
-}
-
-// ── Fullscreen Performance View ───────────────────────────────────────────────
-function FullscreenView({ setlistSongs, currentIndex, setCurrentIndex, useFlats, nashville, displayMode, onClose }) {
-  const song = setlistSongs[currentIndex];
-  const touchStartX = useRef(null);
-  const touchStartY = useRef(null);
-  const contentRef = useRef(null);
-
-  const goPrev = useCallback(() => {
-    if (currentIndex > 0) setCurrentIndex(i => i - 1);
-  }, [currentIndex, setCurrentIndex]);
-
-  const goNext = useCallback(() => {
-    if (currentIndex < setlistSongs.length - 1) setCurrentIndex(i => i + 1);
-  }, [currentIndex, setlistSongs.length, setCurrentIndex]);
-
-  // Keyboard nav
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") goNext();
-      if (e.key === "ArrowLeft" || e.key === "ArrowUp") goPrev();
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [goPrev, goNext, onClose]);
-
-  // Swipe gesture
-  const handleTouchStart = (e) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-  };
-  const handleTouchEnd = (e) => {
-    if (touchStartX.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    const dy = e.changedTouches[0].clientY - touchStartY.current;
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
-      if (dx < 0) goNext();
-      else goPrev();
-    }
-    touchStartX.current = null;
-  };
-
-  if (!song) return null;
-
-  const semitones = song.semitones || 0;
-  const rootForNashville = transposeNote(song.key.replace("m",""), semitones, useFlats);
-  const effectiveKey = rootForNashville + (song.key.includes("m") && !song.key.includes("maj") ? "m" : "");
-
-  const lines = song.content.split("\n").map((line, i) => {
-    const chord = isChordLine(line);
-    if (chord) {
-      if (displayMode === "lyrics") return null;
-      const t = transposeChordLine(line, semitones, useFlats, nashville, rootForNashville);
-      return <div key={i} className="fs-chord-line">{t || "\u00A0"}</div>;
-    }
-    if (displayMode === "chords") return null;
-    return <div key={i} className="fs-lyric-line">{line || "\u00A0"}</div>;
-  });
-
-  return (
-    <div className="fs-overlay" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-      {/* Header */}
-      <div className="fs-header">
-        <button className="fs-close-btn" onClick={onClose}>✕ Exit</button>
-        <div className="fs-song-info">
-          <span className="fs-title">{song.title}</span>
-          <span className="fs-artist">{song.artist}</span>
+        {/* Key badge always shows letter, not NNS */}
+        <div className="key-badge" title={nashville ? `Nashville mode · Key of ${effectiveKey}` : ""}>
+          {effectiveKey}
+          {nashville && <span style={{display:"block",fontSize:"0.6rem",opacity:0.7,marginTop:1}}>NNS</span>}
         </div>
-        <div className="fs-key-badge">{nashville ? "NNS" : effectiveKey}</div>
-        <span className="fs-counter">{currentIndex + 1} / {setlistSongs.length}</span>
       </div>
-
-      {/* Song content */}
-      <div className="fs-content" ref={contentRef}>
-        <div className="fs-lines">{lines}</div>
-      </div>
-
-      {/* Bottom nav — big buttons for performance */}
-      <div className="fs-nav">
-        <button
-          className="fs-nav-btn fs-prev"
-          onClick={goPrev}
-          disabled={currentIndex === 0}>
-          <span className="fs-nav-arrow">‹</span>
-          <span className="fs-nav-label">{currentIndex > 0 ? setlistSongs[currentIndex - 1].title : "—"}</span>
-        </button>
-
-        <div className="fs-dots">
-          {setlistSongs.map((_, i) => (
-            <button key={i}
-              className={`fs-dot ${i === currentIndex ? "active" : ""}`}
-              onClick={() => setCurrentIndex(i)} />
-          ))}
-        </div>
-
-        <button
-          className="fs-nav-btn fs-next"
-          onClick={goNext}
-          disabled={currentIndex === setlistSongs.length - 1}>
-          <span className="fs-nav-label">{currentIndex < setlistSongs.length - 1 ? setlistSongs[currentIndex + 1].title : "—"}</span>
-          <span className="fs-nav-arrow">›</span>
-        </button>
+      <div className="song-content">
+        {displayMode === "chords" && renderChords()}
+        {displayMode === "lyrics" && renderLyrics()}
+        {displayMode === "drums" && renderDrums()}
       </div>
     </div>
   );
 }
 
+// ── Song Editor with tabbed input ─────────────────────────────────────────────
 function SongEditor({ song, onSave, onCancel }) {
-  const [form, setForm] = useState({ ...song });
+  const [form, setForm] = useState({
+    lyrics: "", chords: "", drums: "", ...song
+  });
+  const [editorTab, setEditorTab] = useState("lyrics");
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const editorTabs = [
+    { id:"lyrics", label:"🎤 Lyrics", placeholder:"Type or paste the lyrics here...\n\nVerse 1\nAmazing grace how sweet the sound\nThat saved a wretch like me\n\nChorus\nI once was lost but now am found\nWas blind but now I see" },
+    { id:"chords", label:"🎸 Chords", placeholder:"Type chord lines above lyric lines:\n\nG           G7          C\nAmazing grace how sweet the sound\nG              Em       D\nThat saved a wretch like me" },
+    { id:"drums", label:"🥁 Drum Notes", placeholder:"Type drum patterns or notes here:\n\nIntro: 4/4 straight\nVerse: Hi-hat on 8ths, kick on 1 & 3\nChorus: Open hi-hat on 2 & 4\nOutro: Ride cymbal, build to crash" },
+  ];
+
   return (
     <div className="editor-overlay">
       <div className="editor-card">
@@ -153,18 +81,35 @@ function SongEditor({ song, onSave, onCancel }) {
             <input value={form.artist} onChange={e => set("artist", e.target.value)} placeholder="Artist name" />
           </div>
         </div>
-        <div className="editor-field editor-field-sm">
+        <div className="editor-field" style={{maxWidth:180}}>
           <label>Original Key</label>
           <select value={form.key} onChange={e => set("key", e.target.value)}>
             {KEYS.map(k => <option key={k}>{k}</option>)}
           </select>
         </div>
-        <div className="editor-field">
-          <label>Chords & Lyrics <span className="label-hint">(chord line then lyric line)</span></label>
-          <textarea value={form.content} onChange={e => set("content", e.target.value)} rows={10}
-            placeholder={"G           D           Em\nThis is a lyric line below chords"} />
+
+        {/* Tabbed content input */}
+        <div className="editor-tabs">
+          {editorTabs.map(t => (
+            <button key={t.id}
+              className={`editor-tab-btn ${editorTab===t.id?"active":""}`}
+              onClick={() => setEditorTab(t.id)}>
+              {t.label}
+            </button>
+          ))}
         </div>
-        <div className="editor-actions">
+        {editorTabs.map(t => editorTab === t.id && (
+          <div key={t.id} className="editor-field" style={{marginBottom:0}}>
+            <textarea
+              value={form[t.id] || ""}
+              onChange={e => set(t.id, e.target.value)}
+              rows={11}
+              placeholder={t.placeholder}
+            />
+          </div>
+        ))}
+
+        <div className="editor-actions" style={{marginTop:12}}>
           <button className="btn-ghost" onClick={onCancel}>Cancel</button>
           <button className="btn-primary" onClick={() => onSave(form)}>Save Song</button>
         </div>
@@ -173,11 +118,131 @@ function SongEditor({ song, onSave, onCancel }) {
   );
 }
 
+// ── Fullscreen Performance View ───────────────────────────────────────────────
+function FullscreenView({ setlistSongs, currentIndex, setCurrentIndex, useFlats, nashville, displayMode, onClose }) {
+  const song = setlistSongs[currentIndex];
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
+  const [zoom, setZoom] = useState(1.1);
+
+  const goPrev = useCallback(() => {
+    if (currentIndex > 0) setCurrentIndex(i => i - 1);
+  }, [currentIndex, setCurrentIndex]);
+
+  const goNext = useCallback(() => {
+    if (currentIndex < setlistSongs.length - 1) setCurrentIndex(i => i + 1);
+  }, [currentIndex, setlistSongs.length, setCurrentIndex]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") goNext();
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") goPrev();
+      if (e.key === "Escape") onClose();
+      if (e.key === "+" || e.key === "=") setZoom(z => Math.min(z + 0.1, 2.5));
+      if (e.key === "-") setZoom(z => Math.max(z - 0.1, 0.6));
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [goPrev, goNext, onClose]);
+
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+      if (dx < 0) goNext();
+      else goPrev();
+    }
+    touchStartX.current = null;
+  };
+
+  if (!song) return null;
+
+  const semitones = song.semitones || 0;
+  const rootKey = transposeNote(song.key.replace("m",""), semitones, useFlats);
+  const effectiveKey = rootKey + (song.key.includes("m") && !song.key.includes("maj") ? "m" : "");
+
+  const renderLines = () => {
+    if (displayMode === "drums") {
+      return (song.drums || "No drum notes added.").split("\n").map((line, i) =>
+        <div key={i} className="fs-drum-line" style={{fontSize:`${zoom}rem`}}>{line || "\u00A0"}</div>
+      );
+    }
+    if (displayMode === "lyrics") {
+      return (song.lyrics || "No lyrics added.").split("\n").map((line, i) =>
+        <div key={i} className="fs-lyric-line" style={{fontSize:`${zoom}rem`}}>{line || "\u00A0"}</div>
+      );
+    }
+    // chords
+    return (song.chords || "No chords added.").split("\n").map((line, i) => {
+      if (isChordLine(line)) {
+        const t = transposeChordLine(line, semitones, useFlats, nashville, rootKey);
+        return <div key={i} className="fs-chord-line" style={{fontSize:`${zoom}rem`}}>{t || "\u00A0"}</div>;
+      }
+      return <div key={i} className="fs-lyric-line" style={{fontSize:`${zoom}rem`}}>{line || "\u00A0"}</div>;
+    });
+  };
+
+  return (
+    <div className="fs-overlay">
+      {/* Header */}
+      <div className="fs-header">
+        <button className="fs-close-btn" onClick={onClose}>✕</button>
+        <div className="fs-song-info">
+          <span className="fs-title">{song.title}</span>
+          <span className="fs-artist">{song.artist}</span>
+        </div>
+        {/* Key always shows letter */}
+        <div className="fs-key-badge">{effectiveKey}</div>
+        <span className="fs-counter">{currentIndex + 1}/{setlistSongs.length}</span>
+      </div>
+
+      {/* Zoom bar */}
+      <div className="fs-zoom-bar">
+        <span className="fs-zoom-label">Zoom</span>
+        <button className="fs-zoom-btn" onClick={() => setZoom(z => Math.max(z-0.15, 0.6))}>A−</button>
+        <span className="fs-zoom-val">{Math.round(zoom*100)}%</span>
+        <button className="fs-zoom-btn" onClick={() => setZoom(z => Math.min(z+0.15, 2.5))}>A+</button>
+        <button className="fs-zoom-btn" onClick={() => setZoom(1.1)}>↺</button>
+      </div>
+
+      {/* Content — swipe area */}
+      <div className="fs-content"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}>
+        <div className="fs-lines">{renderLines()}</div>
+      </div>
+
+      {/* Bottom nav */}
+      <div className="fs-nav">
+        <button className="fs-nav-btn fs-prev" onClick={goPrev} disabled={currentIndex === 0}>
+          <span className="fs-nav-arrow">‹</span>
+          <span className="fs-nav-label">{currentIndex > 0 ? setlistSongs[currentIndex-1].title : "—"}</span>
+        </button>
+        <div className="fs-dots">
+          {setlistSongs.map((_, i) => (
+            <button key={i} className={`fs-dot ${i===currentIndex?"active":""}`} onClick={() => setCurrentIndex(i)} />
+          ))}
+        </div>
+        <button className="fs-nav-btn fs-next" onClick={goNext} disabled={currentIndex === setlistSongs.length-1}>
+          <span className="fs-nav-label">{currentIndex < setlistSongs.length-1 ? setlistSongs[currentIndex+1].title : "—"}</span>
+          <span className="fs-nav-arrow">›</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Main SetlistPage ───────────────────────────────────────────────────────────
 export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
   const [activeSong, setActiveSong] = useState(setlist[0] || null);
   const [useFlats, setUseFlats] = useState(false);
   const [nashville, setNashville] = useState(false);
-  const [displayMode, setDisplayMode] = useState("both");
+  const [displayMode, setDisplayMode] = useState("chords"); // "lyrics" | "chords" | "drums"
   const [editing, setEditing] = useState(null);
   const [sideView, setSideView] = useState("setlist");
   const [mobileView, setMobileView] = useState("list");
@@ -191,14 +256,13 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
 
   const adjustSongSemitone = (delta) => {
     if (!activeSong) return;
-    setSongs(ss => ss.map(s => s.id === activeSong ? { ...s, semitones: (s.semitones || 0) + delta } : s));
+    setSongs(ss => ss.map(s => s.id === activeSong ? { ...s, semitones: (s.semitones||0)+delta } : s));
   };
   const resetSongSemitone = () => {
     if (!activeSong) return;
     setSongs(ss => ss.map(s => s.id === activeSong ? { ...s, semitones: 0 } : s));
   };
   const currentSemitones = currentSong?.semitones || 0;
-
   const setCurrentIndexInSetlist = (idx) => {
     if (idx >= 0 && idx < setlistSongs.length) setActiveSong(setlistSongs[idx].id);
   };
@@ -237,12 +301,8 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
   const SongList = ({ mobile = false }) => (
     <>
       <div className="sidebar-tabs">
-        <button className={`sidebar-tab ${sideView==="setlist"?"active":""}`} onClick={() => setSideView("setlist")}>
-          Setlist ({setlist.length})
-        </button>
-        <button className={`sidebar-tab ${sideView==="library"?"active":""}`} onClick={() => setSideView("library")}>
-          Library ({songs.length})
-        </button>
+        <button className={`sidebar-tab ${sideView==="setlist"?"active":""}`} onClick={() => setSideView("setlist")}>Setlist ({setlist.length})</button>
+        <button className={`sidebar-tab ${sideView==="library"?"active":""}`} onClick={() => setSideView("library")}>Library ({songs.length})</button>
       </div>
       <div className="sidebar-list">
         {sideView === "setlist" && setlistSongs.map((song, i) => (
@@ -261,7 +321,11 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
               <div className="song-row-meta">{song.artist}</div>
             </div>
             <span className="song-row-key">
-              {song.key}{song.semitones ? ` ${song.semitones>0?"+":""}${song.semitones}` : ""}
+              {(() => {
+                const root = transposeNote(song.key.replace("m",""), song.semitones||0, useFlats);
+                const k = root + (song.key.includes("m")&&!song.key.includes("maj")?"m":"");
+                return k + (song.semitones ? ` ${song.semitones>0?"+":""}${song.semitones}` : "");
+              })()}
             </span>
             <div className="song-row-actions" style={mobile?{opacity:1}:{}}>
               <button className="row-btn" onClick={e => { e.stopPropagation(); setEditing(song); }}>✏️</button>
@@ -269,9 +333,7 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
             </div>
           </div>
         ))}
-        {sideView === "setlist" && setlistSongs.length === 0 && (
-          <div className="empty-sidebar">No songs in setlist.<br/>Go to Library to add some.</div>
-        )}
+        {sideView === "setlist" && setlistSongs.length === 0 && <div className="empty-sidebar">No songs in setlist.<br/>Go to Library to add.</div>}
         {sideView === "library" && songs.map(song => {
           const inSL = setlist.includes(song.id);
           return (
@@ -284,10 +346,7 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
               <span className="song-row-key">{song.key}</span>
               <div className="song-row-actions" style={mobile?{opacity:1}:{}}>
                 <button className="row-btn" onClick={e => { e.stopPropagation(); setEditing(song); }}>✏️</button>
-                <button className={`row-btn ${inSL?"remove":"add"}`}
-                  onClick={e => { e.stopPropagation(); toggleSetlist(song.id); }}>
-                  {inSL ? "✕" : "+"}
-                </button>
+                <button className={`row-btn ${inSL?"remove":"add"}`} onClick={e => { e.stopPropagation(); toggleSetlist(song.id); }}>{inSL?"✕":"+"}</button>
                 <button className="row-btn danger" onClick={e => { e.stopPropagation(); deleteSong(song.id); }}>🗑</button>
               </div>
             </div>
@@ -295,7 +354,7 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
         })}
       </div>
       <div className="sidebar-footer">
-        <button className="btn-full" onClick={() => setEditing({ id: null, title: "", artist: "", key: "G", content: "", semitones: 0 })}>
+        <button className="btn-full" onClick={() => setEditing({ id:null, title:"", artist:"", key:"G", lyrics:"", chords:"", drums:"", semitones:0 })}>
           + Add Song
         </button>
       </div>
@@ -304,36 +363,32 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
 
   const Controls = () => (
     <div className="sl-controls">
+      {/* Row 1: Transpose */}
       <div className="sl-ctrl-row">
         <span className="transpose-label">Transpose</span>
-        <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
-          <button className="btn-icon" onClick={() => adjustSongSemitone(-1)}>♭</button>
-          <span className="semitone-display">{currentSemitones > 0 ? `+${currentSemitones}` : currentSemitones}</span>
-          <button className="btn-icon" onClick={() => adjustSongSemitone(1)}>♯</button>
-          <button className="btn-icon" onClick={resetSongSemitone} style={{fontSize:"0.7rem"}}>↺</button>
-        </div>
+        <button className="btn-icon" onClick={() => adjustSongSemitone(-1)}>♭</button>
+        <span className="semitone-display">{currentSemitones>0?`+${currentSemitones}`:currentSemitones}</span>
+        <button className="btn-icon" onClick={() => adjustSongSemitone(1)}>♯</button>
+        <button className="btn-icon" onClick={resetSongSemitone} style={{fontSize:"0.7rem"}}>↺</button>
         <span className="ctrl-song-name">{currentSong ? currentSong.title : "—"}</span>
         <div className="toggle-group">
           <button className={`toggle-btn ${!useFlats?"active":""}`} onClick={() => setUseFlats(false)}>♯</button>
           <button className={`toggle-btn ${useFlats?"active":""}`} onClick={() => setUseFlats(true)}>♭</button>
         </div>
-        {/* Fullscreen button — desktop */}
         {currentSong && setlistSongs.length > 0 && (
-          <button className="btn-perform desktop-inline" onClick={() => setFullscreen(true)}
-            title="Performance mode">
-            ⛶ Perform
-          </button>
+          <button className="btn-perform" onClick={() => setFullscreen(true)}>⛶</button>
         )}
       </div>
+      {/* Row 2: Mode toggles */}
       <div className="sl-ctrl-row">
         <div className="toggle-group">
-          <button className={`toggle-btn ${!nashville?"active":""}`} onClick={() => setNashville(false)}>Standard</button>
-          <button className={`toggle-btn ${nashville?"active":""}`} onClick={() => setNashville(true)}>Nashville</button>
+          <button className={`toggle-btn ${!nashville?"active":""}`} onClick={() => setNashville(false)}>Std</button>
+          <button className={`toggle-btn ${nashville?"active":""}`} onClick={() => setNashville(true)}>NNS</button>
         </div>
         <div className="toggle-group">
-          <button className={`toggle-btn ${displayMode==="both"?"active":""}`} onClick={() => setDisplayMode("both")}>Both</button>
-          <button className={`toggle-btn ${displayMode==="chords"?"active":""}`} onClick={() => setDisplayMode("chords")}>Chords</button>
-          <button className={`toggle-btn ${displayMode==="lyrics"?"active":""}`} onClick={() => setDisplayMode("lyrics")}>Lyrics</button>
+          <button className={`toggle-btn ${displayMode==="lyrics"?"active":""}`} onClick={() => setDisplayMode("lyrics")}>🎤 Lyrics</button>
+          <button className={`toggle-btn ${displayMode==="chords"?"active":""}`} onClick={() => setDisplayMode("chords")}>🎸 Chords</button>
+          <button className={`toggle-btn ${displayMode==="drums"?"active":""}`} onClick={() => setDisplayMode("drums")}>🥁 Drums</button>
         </div>
       </div>
     </div>
@@ -342,130 +397,46 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
   return (
     <>
       <style>{`
-        /* ── Fullscreen overlay ── */
-        .fs-overlay {
-          position: fixed; inset: 0; z-index: 200;
-          background: #0f0e0d;
-          display: flex; flex-direction: column;
-          touch-action: pan-y;
-        }
-        .fs-header {
-          display: flex; align-items: center; gap: 12px;
-          padding: 12px 20px; background: #1a1917;
-          border-bottom: 1px solid #2e2b28; flex-shrink: 0;
-          flex-wrap: wrap;
-        }
-        .fs-close-btn {
-          padding: 8px 16px; background: #2e2b28; border: none; border-radius: 8px;
-          color: #f0ebe3; font-size: 0.8rem; font-weight: 700; cursor: pointer;
-          white-space: nowrap; transition: background .15s;
-        }
-        .fs-close-btn:hover { background: #E8621A; }
-        .fs-song-info { flex: 1; min-width: 0; }
-        .fs-title { display: block; font-family: 'Montserrat',sans-serif; font-size: 1rem; font-weight: 900; color: #f0ebe3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .fs-artist { font-size: 0.72rem; color: #7a7268; }
-        .fs-key-badge {
-          font-family: 'Courier Prime', monospace; font-size: 0.9rem; font-weight: 700;
-          color: #E8621A; background: rgba(232,98,26,0.12); border: 1px solid rgba(232,98,26,0.3);
-          padding: 5px 12px; border-radius: 7px; white-space: nowrap;
-        }
-        .fs-counter { font-family: 'Courier Prime', monospace; font-size: 0.78rem; color: #7a7268; white-space: nowrap; }
-
-        .fs-content {
-          flex: 1; overflow-y: auto; padding: 24px 28px;
-        }
-        .fs-content::-webkit-scrollbar { width: 6px; }
-        .fs-content::-webkit-scrollbar-thumb { background: #2e2b28; border-radius: 3px; }
-        .fs-lines { max-width: 800px; }
-        .fs-chord-line { font-family: 'Courier Prime', monospace; color: #E8621A; font-weight: 700; font-size: 1.15rem; white-space: pre; margin-bottom: 2px; line-height: 1.5; }
-        .fs-lyric-line { font-family: 'Courier Prime', monospace; color: #d4ccbf; font-size: 1.15rem; white-space: pre; margin-bottom: 12px; line-height: 1.6; }
-
-        /* ── Bottom nav ── */
-        .fs-nav {
-          display: flex; align-items: stretch; gap: 0;
-          background: #1a1917; border-top: 1px solid #2e2b28;
-          flex-shrink: 0; min-height: 80px;
-        }
-        .fs-nav-btn {
-          flex: 1; display: flex; align-items: center; gap: 10px;
-          padding: 14px 18px; border: none; background: transparent;
-          color: #f0ebe3; cursor: pointer; transition: background .15s;
-          min-height: 80px;
-        }
-        .fs-nav-btn:disabled { opacity: 0.25; cursor: default; }
-        .fs-nav-btn:not(:disabled):hover { background: rgba(232,98,26,0.1); }
-        .fs-prev { justify-content: flex-start; border-right: 1px solid #2e2b28; }
-        .fs-next { justify-content: flex-end; }
-        .fs-nav-arrow {
-          font-size: 2.5rem; font-weight: 300; line-height: 1;
-          color: #E8621A; flex-shrink: 0;
-        }
-        .fs-nav-label {
-          font-size: 0.78rem; font-weight: 700; color: #7a7268;
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-          max-width: 140px;
-        }
-        .fs-prev .fs-nav-label { text-align: left; }
-        .fs-next .fs-nav-label { text-align: right; }
-        .fs-dots {
-          display: flex; align-items: center; justify-content: center;
-          gap: 6px; padding: 0 12px; flex-shrink: 0; flex-wrap: wrap;
-          max-width: 200px;
-        }
-        .fs-dot {
-          width: 8px; height: 8px; border-radius: 50%; border: none;
-          background: #2e2b28; cursor: pointer; transition: all .15s; padding: 0;
-        }
-        .fs-dot.active { background: #E8621A; transform: scale(1.3); }
-
-        /* Perform button */
-        .btn-perform {
-          padding: 7px 14px; background: #E8621A; color: white;
-          border: none; border-radius: 8px; font-size: 0.72rem; font-weight: 700;
-          cursor: pointer; white-space: nowrap; transition: background .15s;
-          box-shadow: 0 2px 8px rgba(232,98,26,0.3);
-        }
-        .btn-perform:hover { background: #FF7A30; }
-        .desktop-inline { display: inline-flex; }
-
-        /* Mobile enlarged touch targets */
+        .drum-line { font-family: 'Courier Prime', monospace; color: #2563EB; white-space: pre-wrap; word-break: break-word; margin-bottom: 6px; line-height: 1.6; }
+        .fs-drum-line { font-family: 'Courier Prime', monospace; color: #60A5FA; white-space: pre-wrap; word-break: break-word; margin-bottom: 8px; line-height: 1.6; }
+        .fs-zoom-btn { padding: 4px 10px; background: #2e2b28; border: none; border-radius: 6px; color: #f0ebe3; font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: background .15s; min-height: 32px; }
+        .fs-zoom-btn:hover { background: #E8621A; }
+        .editor-tabs { display: flex; gap: 3px; padding: 3px; background: var(--bg); border-radius: 10px; margin-bottom: 10px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.08); }
+        .editor-tab-btn { flex: 1; padding: 9px 6px; border: none; border-radius: 8px; font-family: 'Montserrat', sans-serif; font-size: 0.72rem; font-weight: 700; cursor: pointer; background: transparent; color: var(--muted); transition: all .15s; white-space: nowrap; }
+        .editor-tab-btn:hover { color: var(--accent); }
+        .editor-tab-btn.active { background: white; color: var(--accent); box-shadow: var(--shadow-sm); }
+        .desktop-song-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 28px; padding-top: 18px; border-top: 2px solid var(--border); gap: 12px; }
+        .dsn-btn { flex: 1; padding: 12px 16px; background: white; border: 1.5px solid var(--border); border-radius: 10px; color: var(--text); font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: all .15s; box-shadow: var(--shadow-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .dsn-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+        .dsn-btn:disabled { opacity: .3; cursor: default; }
+        .mobile-song-nav { position: fixed; bottom: 0; left: 0; right: 0; display: flex; align-items: stretch; background: white; border-top: 2px solid var(--border); box-shadow: 0 -4px 16px rgba(0,0,0,0.1); min-height: 70px; z-index: 50; }
+        .msn-btn { flex: 1; display: flex; align-items: center; gap: 8px; padding: 12px 16px; border: none; background: transparent; color: var(--text); cursor: pointer; transition: background .15s; }
+        .msn-btn:disabled { opacity: .25; cursor: default; }
+        .msn-btn:not(:disabled):hover { background: var(--accent-light); }
+        .msn-right { justify-content: flex-end; border-left: 1px solid var(--border); }
+        .msn-arrow { font-size: 2.2rem; color: var(--accent); font-weight: 300; line-height: 1; flex-shrink: 0; }
+        .msn-label { font-size: 0.72rem; font-weight: 700; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
+        .msn-counter { font-family: 'Courier Prime',monospace; font-size: 0.75rem; color: var(--muted); padding: 0 10px; display: flex; align-items: center; border-left: 1px solid var(--border); border-right: 1px solid var(--border); white-space: nowrap; }
         @media (max-width: 900px) {
-          .sidebar-tab { padding: 14px 8px !important; font-size: 0.72rem !important; }
-          .song-row { padding: 12px 10px !important; min-height: 56px; }
-          .song-row-title { font-size: 0.9rem !important; }
-          .song-row-meta { font-size: 0.72rem !important; }
-          .rbtn, .row-btn { width: 34px !important; height: 34px !important; font-size: 0.9rem !important; }
-          .btn-full { padding: 14px !important; font-size: 0.8rem !important; }
-          .toggle-btn { padding: 8px 12px !important; font-size: 0.7rem !important; }
-          .btn-icon { width: 36px !important; height: 36px !important; font-size: 1rem !important; }
-          .semitone-display { font-size: 1rem !important; min-width: 36px !important; }
-          .sl-ctrl-row { padding: 10px 14px !important; gap: 10px !important; }
-          .pill-btn { padding: 8px 14px !important; font-size: 0.72rem !important; }
-          .icon-btn { width: 36px !important; height: 36px !important; font-size: 0.9rem !important; }
-          .prog-select, .prog-input { padding: 10px 12px !important; font-size: 0.85rem !important; }
-          .pitem { padding: 14px !important; }
-        }
-
-        @media (max-width: 640px) {
-          .fs-chord-line, .fs-lyric-line { font-size: 1rem; }
-          .fs-nav { min-height: 72px; }
-          .fs-nav-btn { min-height: 72px; padding: 12px 14px; }
-          .fs-nav-arrow { font-size: 2rem; }
-          .fs-nav-label { font-size: 0.7rem; max-width: 90px; }
-          .fs-header { padding: 10px 14px; gap: 8px; }
-          .fs-content { padding: 16px; }
-          .desktop-inline { display: none !important; }
+          .toggle-btn { padding: 9px 13px !important; font-size: 0.72rem !important; min-height: 40px !important; }
+          .btn-icon { width: 40px !important; height: 40px !important; font-size: 1rem !important; }
+          .semitone-display { font-size: 1rem !important; }
+          .sl-ctrl-row { padding: 10px 12px !important; gap: 8px !important; }
+          .song-row { min-height: 58px !important; padding: 12px 10px !important; }
+          .row-btn { width: 36px !important; height: 36px !important; font-size: 0.9rem !important; }
+          .btn-full { padding: 14px !important; font-size: 0.82rem !important; }
+          .sidebar-tab { padding: 14px 8px !important; font-size: 0.73rem !important; min-height: 52px !important; }
+          .editor-tab-btn { padding: 11px 6px !important; font-size: 0.75rem !important; }
         }
       `}</style>
 
       <Controls />
 
-      {/* Fullscreen mode */}
       {fullscreen && (
         <FullscreenView
           setlistSongs={setlistSongs}
           currentIndex={currentSetlistIndex >= 0 ? currentSetlistIndex : 0}
-          setCurrentIndex={(idx) => { setCurrentIndexInSetlist(idx); }}
+          setCurrentIndex={setCurrentIndexInSetlist}
           useFlats={useFlats}
           nashville={nashville}
           displayMode={displayMode}
@@ -473,26 +444,21 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
         />
       )}
 
-      {/* Desktop layout */}
-      <div className="page-body desktop-only">
+      {/* Desktop */}
+      <div className="page-body">
         <aside className="sidebar"><SongList /></aside>
         <main className="main">
           {currentSong ? (
             <>
               <SongDisplay song={currentSong} useFlats={useFlats} nashville={nashville} displayMode={displayMode} />
-              {/* Desktop prev/next at bottom of song */}
               {setlistSongs.length > 1 && (
                 <div className="desktop-song-nav">
-                  <button className="dsn-btn"
-                    disabled={currentSetlistIndex <= 0}
-                    onClick={() => setCurrentIndexInSetlist(currentSetlistIndex - 1)}>
-                    ‹ {currentSetlistIndex > 0 ? setlistSongs[currentSetlistIndex - 1].title : ""}
+                  <button className="dsn-btn" disabled={currentSetlistIndex<=0} onClick={() => setCurrentIndexInSetlist(currentSetlistIndex-1)}>
+                    ‹ {currentSetlistIndex>0 ? setlistSongs[currentSetlistIndex-1].title : ""}
                   </button>
-                  <button className="btn-perform" onClick={() => setFullscreen(true)}>⛶ Performance Mode</button>
-                  <button className="dsn-btn"
-                    disabled={currentSetlistIndex >= setlistSongs.length - 1}
-                    onClick={() => setCurrentIndexInSetlist(currentSetlistIndex + 1)}>
-                    {currentSetlistIndex < setlistSongs.length - 1 ? setlistSongs[currentSetlistIndex + 1].title : ""} ›
+                  <button className="btn-perform" onClick={() => setFullscreen(true)}>⛶ Perform</button>
+                  <button className="dsn-btn" disabled={currentSetlistIndex>=setlistSongs.length-1} onClick={() => setCurrentIndexInSetlist(currentSetlistIndex+1)}>
+                    {currentSetlistIndex<setlistSongs.length-1 ? setlistSongs[currentSetlistIndex+1].title : ""} ›
                   </button>
                 </div>
               )}
@@ -507,53 +473,34 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
         </main>
       </div>
 
-      {/* Mobile layout */}
-      <div className="mobile-only" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      {/* Mobile */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",display: window.innerWidth < 768 ? "flex" : "none"}}>
         {mobileView === "list" ? (
           <SongList mobile />
         ) : (
           <>
             <div className="mobile-song-back">
-              <button className="btn-ghost" style={{padding:"8px 14px",fontSize:"0.8rem"}}
-                onClick={() => setMobileView("list")}>← Back</button>
-              {currentSong && (
-                <span style={{fontWeight:700,fontSize:"0.88rem",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                  {currentSong.title}
-                </span>
-              )}
-              {currentSong && setlistSongs.length > 0 && (
-                <button className="btn-perform" style={{fontSize:"0.7rem",padding:"7px 12px"}}
-                  onClick={() => setFullscreen(true)}>⛶</button>
-              )}
-              {currentSong && (
-                <button className="row-btn" style={{opacity:1,width:"34px",height:"34px"}}
-                  onClick={() => setEditing(currentSong)}>✏️</button>
-              )}
+              <button className="btn-ghost" style={{padding:"9px 14px",fontSize:"0.82rem"}} onClick={() => setMobileView("list")}>← Back</button>
+              {currentSong && <span style={{fontWeight:700,fontSize:"0.88rem",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{currentSong.title}</span>}
+              {currentSong && setlistSongs.length > 0 && <button className="btn-perform" style={{fontSize:"0.75rem",padding:"8px 12px"}} onClick={() => setFullscreen(true)}>⛶</button>}
+              {currentSong && <button className="row-btn" style={{opacity:1,width:"36px",height:"36px"}} onClick={() => setEditing(currentSong)}>✏️</button>}
             </div>
             <main className="main" style={{flex:1,paddingBottom:"80px"}}>
               {currentSong ? (
                 <SongDisplay song={currentSong} useFlats={useFlats} nashville={nashville} displayMode={displayMode} />
               ) : (
-                <div className="empty-state">
-                  <div className="empty-icon">🎸</div>
-                  <div className="empty-text">No song selected</div>
-                </div>
+                <div className="empty-state"><div className="empty-icon">🎸</div><div className="empty-text">No song selected</div></div>
               )}
             </main>
-            {/* Mobile prev/next fixed at bottom */}
             {setlistSongs.length > 1 && (
               <div className="mobile-song-nav">
-                <button className="msn-btn"
-                  disabled={currentSetlistIndex <= 0}
-                  onClick={() => { setCurrentIndexInSetlist(currentSetlistIndex - 1); }}>
+                <button className="msn-btn" disabled={currentSetlistIndex<=0} onClick={() => setCurrentIndexInSetlist(currentSetlistIndex-1)}>
                   <span className="msn-arrow">‹</span>
-                  <span className="msn-label">{currentSetlistIndex > 0 ? setlistSongs[currentSetlistIndex - 1].title : "—"}</span>
+                  <span className="msn-label">{currentSetlistIndex>0 ? setlistSongs[currentSetlistIndex-1].title : "—"}</span>
                 </button>
-                <span className="msn-counter">{currentSetlistIndex + 1}/{setlistSongs.length}</span>
-                <button className="msn-btn msn-right"
-                  disabled={currentSetlistIndex >= setlistSongs.length - 1}
-                  onClick={() => { setCurrentIndexInSetlist(currentSetlistIndex + 1); }}>
-                  <span className="msn-label">{currentSetlistIndex < setlistSongs.length - 1 ? setlistSongs[currentSetlistIndex + 1].title : "—"}</span>
+                <span className="msn-counter">{currentSetlistIndex+1}/{setlistSongs.length}</span>
+                <button className="msn-btn msn-right" disabled={currentSetlistIndex>=setlistSongs.length-1} onClick={() => setCurrentIndexInSetlist(currentSetlistIndex+1)}>
+                  <span className="msn-label">{currentSetlistIndex<setlistSongs.length-1 ? setlistSongs[currentSetlistIndex+1].title : "—"}</span>
                   <span className="msn-arrow">›</span>
                 </button>
               </div>
@@ -561,43 +508,6 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
           </>
         )}
       </div>
-
-      <style>{`
-        .desktop-song-nav {
-          display: flex; align-items: center; justify-content: space-between;
-          margin-top: 32px; padding-top: 20px; border-top: 2px solid var(--border);
-          gap: 12px;
-        }
-        .dsn-btn {
-          flex: 1; padding: 12px 16px; background: white;
-          border: 1.5px solid var(--border); border-radius: 10px;
-          color: var(--text); font-size: 0.82rem; font-weight: 700;
-          cursor: pointer; transition: all .15s;
-          box-shadow: var(--shadow-sm); white-space: nowrap;
-          overflow: hidden; text-overflow: ellipsis;
-        }
-        .dsn-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); box-shadow: var(--shadow-md); }
-        .dsn-btn:disabled { opacity: 0.3; cursor: default; }
-
-        .mobile-song-nav {
-          position: fixed; bottom: 0; left: 0; right: 0;
-          display: flex; align-items: stretch;
-          background: white; border-top: 2px solid var(--border);
-          box-shadow: 0 -4px 16px rgba(0,0,0,0.1);
-          min-height: 70px; z-index: 50;
-        }
-        .msn-btn {
-          flex: 1; display: flex; align-items: center; gap: 8px;
-          padding: 12px 16px; border: none; background: transparent;
-          color: var(--text); cursor: pointer; transition: background .15s;
-        }
-        .msn-btn:disabled { opacity: 0.25; cursor: default; }
-        .msn-btn:not(:disabled):hover { background: var(--accent-light); }
-        .msn-right { justify-content: flex-end; border-left: 1px solid var(--border); }
-        .msn-arrow { font-size: 2rem; color: var(--accent); font-weight: 300; line-height: 1; flex-shrink: 0; }
-        .msn-label { font-size: 0.72rem; font-weight: 700; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
-        .msn-counter { font-family: 'Courier Prime',monospace; font-size: 0.75rem; color: var(--muted); padding: 0 10px; display: flex; align-items: center; border-left: 1px solid var(--border); border-right: 1px solid var(--border); white-space: nowrap; }
-      `}</style>
 
       {editing && <SongEditor song={editing} onSave={saveSong} onCancel={() => setEditing(null)} />}
     </>
