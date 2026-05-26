@@ -52,9 +52,9 @@ function SongEditor({ song, onSave, onCancel }) {
           </select>
         </div>
         <div className="editor-field">
-          <label>Chords & Lyrics <span className="label-hint">(alternate chord line / lyric line)</span></label>
-          <textarea value={form.content} onChange={e => set("content", e.target.value)} rows={12}
-            placeholder={"G           D           Em\nThis is a chord line above lyrics\nG           C\nAnother verse here"} />
+          <label>Chords & Lyrics <span className="label-hint">(chord line then lyric line)</span></label>
+          <textarea value={form.content} onChange={e => set("content", e.target.value)} rows={10}
+            placeholder={"G           D           Em\nThis is a lyric line below chords\nG           C\nAnother line here"} />
         </div>
         <div className="editor-actions">
           <button className="btn-ghost" onClick={onCancel}>Cancel</button>
@@ -73,6 +73,7 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
   const [displayMode, setDisplayMode] = useState("both");
   const [editing, setEditing] = useState(null);
   const [sideView, setSideView] = useState("setlist");
+  const [mobileView, setMobileView] = useState("list"); // "list" | "song"
   const [dragOver, setDragOver] = useState(null);
   const [dragging, setDragging] = useState(null);
 
@@ -109,32 +110,39 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
     setDragging(null); setDragOver(null);
   };
 
+  const selectSong = (id) => {
+    setActiveSong(id);
+    setMobileView("song");
+  };
+
   return (
     <>
-      <div className="page-header">
-        <div className="transpose-bar">
+      {/* Controls bar — scrollable on mobile */}
+      <div className="page-header" style={{overflowX:"auto", flexWrap:"nowrap", WebkitOverflowScrolling:"touch"}}>
+        <div className="transpose-bar" style={{flexShrink:0}}>
           <span className="transpose-label">Transpose</span>
           <button className="btn-icon" onClick={() => setSemitones(s => s - 1)}>♭</button>
           <span className="semitone-display">{semitones > 0 ? `+${semitones}` : semitones}</span>
           <button className="btn-icon" onClick={() => setSemitones(s => s + 1)}>♯</button>
           <button className="btn-icon" onClick={() => setSemitones(0)} style={{fontSize:"0.7rem"}}>↺</button>
         </div>
-        <div className="toggle-group">
-          <button className={`toggle-btn ${!useFlats ? "active":""}`} onClick={() => setUseFlats(false)}>♯ Sharps</button>
-          <button className={`toggle-btn ${useFlats ? "active":""}`} onClick={() => setUseFlats(true)}>♭ Flats</button>
+        <div className="toggle-group" style={{flexShrink:0}}>
+          <button className={`toggle-btn ${!useFlats ? "active":""}`} onClick={() => setUseFlats(false)}>♯</button>
+          <button className={`toggle-btn ${useFlats ? "active":""}`} onClick={() => setUseFlats(true)}>♭</button>
         </div>
-        <div className="toggle-group">
-          <button className={`toggle-btn ${!nashville ? "active":""}`} onClick={() => setNashville(false)}>Standard</button>
-          <button className={`toggle-btn ${nashville ? "active":""}`} onClick={() => setNashville(true)}>Nashville</button>
+        <div className="toggle-group" style={{flexShrink:0}}>
+          <button className={`toggle-btn ${!nashville ? "active":""}`} onClick={() => setNashville(false)}>Std</button>
+          <button className={`toggle-btn ${nashville ? "active":""}`} onClick={() => setNashville(true)}>NNS</button>
         </div>
-        <div className="toggle-group">
+        <div className="toggle-group" style={{flexShrink:0}}>
           <button className={`toggle-btn ${displayMode==="both"?"active":""}`} onClick={() => setDisplayMode("both")}>Both</button>
           <button className={`toggle-btn ${displayMode==="chords"?"active":""}`} onClick={() => setDisplayMode("chords")}>Chords</button>
           <button className={`toggle-btn ${displayMode==="lyrics"?"active":""}`} onClick={() => setDisplayMode("lyrics")}>Lyrics</button>
         </div>
       </div>
 
-      <div className="page-body">
+      {/* Desktop layout */}
+      <div className="page-body desktop-only">
         <aside className="sidebar">
           <div className="sidebar-tabs">
             <button className={`sidebar-tab ${sideView==="setlist"?"active":""}`} onClick={() => setSideView("setlist")}>Setlist ({setlist.length})</button>
@@ -192,7 +200,6 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
             </button>
           </div>
         </aside>
-
         <main className="main">
           {currentSong ? (
             <SongDisplay song={currentSong} semitones={semitones} useFlats={useFlats} nashville={nashville} displayMode={displayMode} />
@@ -204,6 +211,85 @@ export default function SetlistPage({ songs, setSongs, setlist, setSetlist }) {
             </div>
           )}
         </main>
+      </div>
+
+      {/* Mobile layout */}
+      <div className="mobile-only" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        {mobileView === "list" ? (
+          <>
+            {/* Mobile tab bar */}
+            <div className="sidebar-tabs">
+              <button className={`sidebar-tab ${sideView==="setlist"?"active":""}`} onClick={() => setSideView("setlist")}>Setlist ({setlist.length})</button>
+              <button className={`sidebar-tab ${sideView==="library"?"active":""}`} onClick={() => setSideView("library")}>Library ({songs.length})</button>
+            </div>
+            <div className="sidebar-list" style={{flex:1,background:"var(--bg)"}}>
+              {sideView === "setlist" && setlistSongs.map((song, i) => (
+                <div key={song.id} className={`song-row ${activeSong===song.id?"active":""}`}
+                  onClick={() => selectSong(song.id)}>
+                  <span className="song-row-num">{i+1}</span>
+                  <div className="song-row-info">
+                    <div className="song-row-title">{song.title}</div>
+                    <div className="song-row-meta">{song.artist}</div>
+                  </div>
+                  <span className="song-row-key">{song.key}</span>
+                  <div className="song-row-actions" style={{opacity:1}}>
+                    <button className="row-btn" onClick={e => { e.stopPropagation(); setEditing(song); }}>✏️</button>
+                    <button className="row-btn remove" onClick={e => { e.stopPropagation(); toggleSetlist(song.id); }}>✕</button>
+                  </div>
+                </div>
+              ))}
+              {sideView === "setlist" && setlistSongs.length === 0 && (
+                <div className="empty-sidebar">No songs in setlist.<br/>Go to Library to add some.</div>
+              )}
+              {sideView === "library" && songs.map(song => {
+                const inSetlist = setlist.includes(song.id);
+                return (
+                  <div key={song.id} className={`song-row ${activeSong===song.id?"active":""}`}
+                    onClick={() => selectSong(song.id)}>
+                    <div className="song-row-info">
+                      <div className="song-row-title">{song.title}</div>
+                      <div className="song-row-meta">{song.artist}</div>
+                    </div>
+                    <span className="song-row-key">{song.key}</span>
+                    <div className="song-row-actions" style={{opacity:1}}>
+                      <button className="row-btn" onClick={e => { e.stopPropagation(); setEditing(song); }}>✏️</button>
+                      <button className={`row-btn ${inSetlist?"remove":"add"}`}
+                        onClick={e => { e.stopPropagation(); toggleSetlist(song.id); }}>
+                        {inSetlist ? "✕" : "+"}
+                      </button>
+                      <button className="row-btn danger" onClick={e => { e.stopPropagation(); deleteSong(song.id); }}>🗑</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="sidebar-footer">
+              <button className="btn-full" onClick={() => setEditing({ id: null, title: "", artist: "", key: "G", content: "" })}>
+                + Add Song
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Mobile back button */}
+            <div style={{padding:"10px 16px",background:"var(--panel)",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:"10px",boxShadow:"var(--shadow-sm)"}}>
+              <button className="btn-ghost" style={{padding:"6px 14px",fontSize:"0.78rem"}} onClick={() => setMobileView("list")}>
+                ← Back
+              </button>
+              {currentSong && <span style={{fontWeight:700,fontSize:"0.9rem",color:"var(--text)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{currentSong.title}</span>}
+            </div>
+            <main className="main" style={{flex:1}}>
+              {currentSong ? (
+                <SongDisplay song={currentSong} semitones={semitones} useFlats={useFlats} nashville={nashville} displayMode={displayMode} />
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-icon">🎸</div>
+                  <div className="empty-text">No song selected</div>
+                </div>
+              )}
+            </main>
+          </>
+        )}
       </div>
 
       {editing && <SongEditor song={editing} onSave={saveSong} onCancel={() => setEditing(null)} />}

@@ -268,6 +268,23 @@ export default function App() {
         .preview-item-note { font-size: 0.78rem; color: var(--muted); font-style: italic; }
         .preview-notes { font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
 
+        .desktop-only { display: grid !important; }
+        .mobile-only { display: none !important; }
+
+        @media (max-width: 768px) {
+          .desktop-only { display: none !important; }
+          .mobile-only { display: flex !important; }
+          .topbar { padding: 0 12px; height: 52px; }
+          .topbar-logo-text { font-size: 0.9rem; }
+          .topbar-logo-sub { display: none; }
+          .page-header { padding: 6px 10px; gap: 6px; }
+          .main { padding: 16px; }
+          .song-display-title { font-size: 1.2rem; }
+          .song-content { font-size: 0.8rem; }
+          .editor-card { padding: 18px; border-radius: 12px; }
+          .editor-row { grid-template-columns: 1fr; }
+        }
+
         @media print {
           .topbar, .preview-toolbar { display: none !important; }
           body { background: white !important; color: black !important; }
