@@ -268,21 +268,64 @@ export default function App() {
         .preview-item-note { font-size: 0.78rem; color: var(--muted); font-style: italic; }
         .preview-notes { font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
 
+        /* ── Setlist controls 2-row layout ── */
+        .sl-controls { background: var(--panel); box-shadow: var(--shadow-sm); flex-shrink: 0; z-index: 5; }
+        .sl-ctrl-row { display: flex; align-items: center; gap: 10px; padding: 7px 16px; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
+        .sl-ctrl-row:last-child { border-bottom: none; }
+        .ctrl-song-name { flex: 1; font-size: 0.75rem; font-weight: 700; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+        /* ── Mobile back bar ── */
+        .mobile-song-back { padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; box-shadow: var(--shadow-sm); flex-shrink: 0; }
+
+        /* ── Responsive breakpoints ── */
         .desktop-only { display: grid !important; }
         .mobile-only { display: none !important; }
 
-        @media (max-width: 768px) {
+        /* Tablet */
+        @media (max-width: 900px) {
+          .page-body { grid-template-columns: 200px 1fr; }
+          .program-body { grid-template-columns: 220px 1fr; }
+          .topbar-logo-sub { display: none; }
+        }
+
+        /* Mobile */
+        @media (max-width: 640px) {
           .desktop-only { display: none !important; }
           .mobile-only { display: flex !important; }
-          .topbar { padding: 0 12px; height: 52px; }
-          .topbar-logo-text { font-size: 0.9rem; }
+
+          .topbar { padding: 0 12px; height: 50px; }
+          .topbar-logo-text { font-size: 0.88rem; }
           .topbar-logo-sub { display: none; }
-          .page-header { padding: 6px 10px; gap: 6px; }
-          .main { padding: 16px; }
+          .nav-tab { padding: 6px 12px; font-size: 0.65rem; }
+          .nav-tab-icon { display: none; }
+
+          .sl-ctrl-row { padding: 6px 10px; gap: 8px; }
+          .ctrl-song-name { font-size: 0.68rem; }
+          .toggle-btn { padding: 3px 7px; font-size: 0.6rem; }
+          .btn-icon { width: 26px; height: 26px; font-size: 0.9rem; }
+          .semitone-display { font-size: 0.85rem; min-width: 28px; }
+          .transpose-label { font-size: 0.6rem; }
+
+          .main { padding: 14px; }
           .song-display-title { font-size: 1.2rem; }
-          .song-content { font-size: 0.8rem; }
-          .editor-card { padding: 18px; border-radius: 12px; }
-          .editor-row { grid-template-columns: 1fr; }
+          .song-content { font-size: 0.78rem; }
+          .key-badge { font-size: 0.82rem; padding: 4px 10px; }
+
+          .editor-card { padding: 16px; border-radius: 12px; max-height: 95vh; }
+          .editor-row { grid-template-columns: 1fr; gap: 0; }
+          .editor-field-sm { max-width: 100%; }
+
+          .prog-details { padding: 12px; }
+          .prog-order { padding: 12px; }
+          .page-header { padding: 6px 10px; }
+
+          .preview-doc { padding: 20px 14px; }
+          .preview-title { font-size: 1.3rem; }
+
+          .sidebar-list { padding: 6px; }
+          .song-row { padding: 8px; }
+          .song-row-title { font-size: 0.82rem; }
+          .song-row-meta { font-size: 0.65rem; }
         }
 
         @media print {

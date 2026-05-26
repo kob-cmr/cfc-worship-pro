@@ -9,22 +9,16 @@ const SECTION_PRESETS = [
 function ItemRow({ item, songs, index, total, onUpdate, onDelete, onMove, setlist, setSetlist }) {
   const song = item.type === "song" ? songs.find(s => s.id === item.songId) : null;
   const inSetlist = item.type === "song" && setlist.includes(item.songId);
-
   return (
     <div className={`prog-item ${item.type}`}>
       <div className="prog-item-left">
         <span className="prog-num">{index + 1}</span>
-        <span className={`prog-type-badge ${item.type}`}>
-          {item.type === "song" ? "🎵" : "📋"}
-        </span>
+        <span className="prog-type-badge">{item.type === "song" ? "🎵" : "📋"}</span>
       </div>
-
       <div className="prog-item-body">
         {item.type === "song" ? (
           <div className="prog-song-info">
-            <select
-              className="prog-select"
-              value={item.songId || ""}
+            <select className="prog-select" value={item.songId || ""}
               onChange={e => {
                 const id = Number(e.target.value);
                 onUpdate({ ...item, songId: id });
@@ -41,26 +35,18 @@ function ItemRow({ item, songs, index, total, onUpdate, onDelete, onMove, setlis
           </div>
         ) : (
           <div className="prog-section-info">
-            <input
-              className="prog-input"
-              value={item.label || ""}
+            <input className="prog-input" value={item.label || ""}
               onChange={e => onUpdate({ ...item, label: e.target.value })}
-              placeholder="Section name…"
-              list="section-presets"
-            />
+              placeholder="Section name…" list="section-presets" />
             <datalist id="section-presets">
               {SECTION_PRESETS.map(p => <option key={p} value={p} />)}
             </datalist>
-            <input
-              className="prog-input prog-input-sm"
-              value={item.notes || ""}
+            <input className="prog-input prog-input-sm" value={item.notes || ""}
               onChange={e => onUpdate({ ...item, notes: e.target.value })}
-              placeholder="Notes (optional)"
-            />
+              placeholder="Notes (optional)" />
           </div>
         )}
       </div>
-
       <div className="prog-item-actions">
         <button className="icon-btn" disabled={index === 0} onClick={() => onMove(index, -1)}>↑</button>
         <button className="icon-btn" disabled={index === total - 1} onClick={() => onMove(index, 1)}>↓</button>
@@ -72,6 +58,7 @@ function ItemRow({ item, songs, index, total, onUpdate, onDelete, onMove, setlis
 
 export default function ProgramPage({ songs, program, setProgram, setlist, setSetlist }) {
   const [previewMode, setPreviewMode] = useState(false);
+  const [mobileSection, setMobileSection] = useState("details"); // "details" | "order"
 
   const updateField = (k, v) => setProgram(p => ({ ...p, [k]: v }));
 
@@ -100,13 +87,10 @@ export default function ProgramPage({ songs, program, setProgram, setlist, setSe
     });
   };
 
-  // Auto-sync: songs in program → setlist
   const syncToSetlist = () => {
     const songIds = program.items.filter(i => i.type === "song" && i.songId).map(i => i.songId);
     setSetlist(songIds);
   };
-
-  const songItems = program.items.filter(i => i.type === "song" && i.songId);
 
   const formatDate = (d) => {
     if (!d) return "";
@@ -114,17 +98,97 @@ export default function ProgramPage({ songs, program, setProgram, setlist, setSe
     return date.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
   };
 
+  const songItems = program.items.filter(i => i.type === "song" && i.songId);
+
+  const ServiceDetails = () => (
+    <div className="prog-details">
+      <div className="prog-section-title">Service Details</div>
+      <div className="prog-field">
+        <label>Service Title</label>
+        <input value={program.title} onChange={e => updateField("title", e.target.value)} placeholder="Sunday Morning Worship" />
+      </div>
+      <div className="prog-field-row">
+        <div className="prog-field">
+          <label>Date</label>
+          <input type="date" value={program.date} onChange={e => updateField("date", e.target.value)} />
+        </div>
+        <div className="prog-field">
+          <label>Time</label>
+          <input type="time" value={program.time} onChange={e => updateField("time", e.target.value)} />
+        </div>
+      </div>
+      <div className="prog-field">
+        <label>Speaker / Preacher</label>
+        <input value={program.speaker} onChange={e => updateField("speaker", e.target.value)} placeholder="Pastor name" />
+      </div>
+      <div className="prog-field">
+        <label>Sermon Title</label>
+        <input value={program.sermonTitle} onChange={e => updateField("sermonTitle", e.target.value)} placeholder="Sermon title" />
+      </div>
+      <div className="prog-field">
+        <label>Scripture Reading</label>
+        <input value={program.scripture} onChange={e => updateField("scripture", e.target.value)} placeholder="e.g. John 3:16-21" />
+      </div>
+      <div className="prog-field">
+        <label>Team Notes</label>
+        <textarea value={program.notes} onChange={e => updateField("notes", e.target.value)}
+          rows={3} placeholder="Internal notes for the worship team…" />
+      </div>
+      <div className="prog-section-title" style={{marginTop:"16px"}}>Setlist Summary</div>
+      <div className="setlist-summary">
+        {setlist.length === 0 && <div className="empty-sidebar">No songs in setlist yet.</div>}
+        {setlist.map((id, i) => {
+          const s = songs.find(x => x.id === id);
+          return s ? (
+            <div key={id} className="summary-row">
+              <span className="summary-num">{i+1}</span>
+              <span className="summary-title">{s.title}</span>
+              <span className="summary-key">{s.key}</span>
+            </div>
+          ) : null;
+        })}
+      </div>
+    </div>
+  );
+
+  const OrderOfService = () => (
+    <div className="prog-order">
+      <div className="prog-section-header">
+        <div className="prog-section-title">Order of Service</div>
+        <div style={{display:"flex",gap:"6px"}}>
+          <button className="pill-btn" onClick={() => addItem("section")}>+ Section</button>
+          <button className="pill-btn accent" onClick={() => addItem("song")}>+ Song</button>
+        </div>
+      </div>
+      {program.items.length === 0 && (
+        <div className="empty-state" style={{height:"180px"}}>
+          <div className="empty-icon">📋</div>
+          <div className="empty-text">No items yet</div>
+          <div className="empty-sub">Add a section or song above</div>
+        </div>
+      )}
+      <div className="prog-items-list">
+        {program.items.map((item, i) => (
+          <ItemRow key={item.id} item={item} songs={songs} index={i}
+            total={program.items.length} onUpdate={updateItem}
+            onDelete={deleteItem} onMove={moveItem}
+            setlist={setlist} setSetlist={setSetlist} />
+        ))}
+      </div>
+    </div>
+  );
+
   if (previewMode) {
     return (
       <div className="preview-wrap">
         <div className="preview-toolbar">
-          <button className="btn-ghost" onClick={() => setPreviewMode(false)}>← Back to Editor</button>
+          <button className="btn-ghost" onClick={() => setPreviewMode(false)}>← Back</button>
           <button className="btn-primary" onClick={() => window.print()}>🖨 Print</button>
         </div>
         <div className="preview-doc">
           <div className="preview-church">Worship Service Program</div>
           <div className="preview-title">{program.title || "Sunday Service"}</div>
-          <div className="preview-date">{formatDate(program.date)} {program.time ? `· ${program.time}` : ""}</div>
+          <div className="preview-date">{formatDate(program.date)}{program.time ? ` · ${program.time}` : ""}</div>
           {(program.speaker || program.sermonTitle) && (
             <div className="preview-sermon">
               {program.sermonTitle && <div className="preview-sermon-title">"{program.sermonTitle}"</div>}
@@ -144,26 +208,15 @@ export default function ProgramPage({ songs, program, setProgram, setlist, setSe
                 <div key={item.id} className={`preview-item ${item.type}`}>
                   <span className="preview-item-num">{i + 1}.</span>
                   {item.type === "song" && song ? (
-                    <div>
-                      <span className="preview-item-song">{song.title}</span>
-                      <span className="preview-item-meta"> — {song.artist}</span>
-                    </div>
+                    <div><span className="preview-item-song">{song.title}</span><span className="preview-item-meta"> — {song.artist}</span></div>
                   ) : item.type === "section" ? (
-                    <div>
-                      <span className="preview-item-section">{item.label}</span>
-                      {item.notes && <span className="preview-item-note"> ({item.notes})</span>}
-                    </div>
+                    <div><span className="preview-item-section">{item.label}</span>{item.notes && <span className="preview-item-note"> ({item.notes})</span>}</div>
                   ) : null}
                 </div>
               );
             })}
           </div>
-          {program.notes && (
-            <>
-              <div className="preview-divider" />
-              <div className="preview-notes"><strong>Notes:</strong> {program.notes}</div>
-            </>
-          )}
+          {program.notes && (<><div className="preview-divider" /><div className="preview-notes"><strong>Notes:</strong> {program.notes}</div></>)}
         </div>
       </div>
     );
@@ -171,113 +224,33 @@ export default function ProgramPage({ songs, program, setProgram, setlist, setSe
 
   return (
     <div className="program-wrap">
-      {/* Top toolbar */}
-      <div className="page-header">
+      {/* Toolbar */}
+      <div className="page-header" style={{flexWrap:"wrap",gap:"8px"}}>
         <div className="prog-toolbar-left">
-          <span className="prog-sync-info">
-            {songItems.length} song{songItems.length !== 1 ? "s" : ""} in program
-          </span>
-          <button className="pill-btn accent" onClick={syncToSetlist} title="Sync all program songs to setlist">
-            ↕ Sync to Setlist
-          </button>
+          <span className="prog-sync-info">{songItems.length} song{songItems.length !== 1 ? "s" : ""} in program</span>
+          <button className="pill-btn accent" onClick={syncToSetlist}>↕ Sync to Setlist</button>
         </div>
-        <div style={{display:"flex",gap:"8px"}}>
-          <button className="btn-ghost" onClick={() => setPreviewMode(true)}>👁 Preview / Print</button>
-        </div>
+        <button className="btn-ghost" onClick={() => setPreviewMode(true)}>👁 Preview / Print</button>
       </div>
 
-      <div className="program-body">
-        {/* Left: service details */}
-        <div className="prog-details">
-          <div className="prog-section-title">Service Details</div>
+      {/* Desktop: side by side */}
+      <div className="program-body desktop-only">
+        <ServiceDetails />
+        <OrderOfService />
+      </div>
 
-          <div className="prog-field">
-            <label>Service Title</label>
-            <input value={program.title} onChange={e => updateField("title", e.target.value)} placeholder="e.g. Sunday Morning Worship" />
-          </div>
-
-          <div className="prog-field-row">
-            <div className="prog-field">
-              <label>Date</label>
-              <input type="date" value={program.date} onChange={e => updateField("date", e.target.value)} />
-            </div>
-            <div className="prog-field">
-              <label>Time</label>
-              <input type="time" value={program.time} onChange={e => updateField("time", e.target.value)} />
-            </div>
-          </div>
-
-          <div className="prog-field">
-            <label>Speaker / Preacher</label>
-            <input value={program.speaker} onChange={e => updateField("speaker", e.target.value)} placeholder="Pastor name" />
-          </div>
-
-          <div className="prog-field">
-            <label>Sermon Title</label>
-            <input value={program.sermonTitle} onChange={e => updateField("sermonTitle", e.target.value)} placeholder="Sermon title" />
-          </div>
-
-          <div className="prog-field">
-            <label>Scripture Reading</label>
-            <input value={program.scripture} onChange={e => updateField("scripture", e.target.value)} placeholder="e.g. John 3:16-21" />
-          </div>
-
-          <div className="prog-field">
-            <label>Team Notes</label>
-            <textarea value={program.notes} onChange={e => updateField("notes", e.target.value)}
-              rows={4} placeholder="Internal notes for the worship team…" />
-          </div>
-
-          <div className="prog-section-title" style={{marginTop:"20px"}}>Setlist Summary</div>
-          <div className="setlist-summary">
-            {setlist.length === 0 && <div className="empty-sidebar">No songs in setlist yet.</div>}
-            {setlist.map((id, i) => {
-              const s = songs.find(x => x.id === id);
-              return s ? (
-                <div key={id} className="summary-row">
-                  <span className="summary-num">{i+1}</span>
-                  <span className="summary-title">{s.title}</span>
-                  <span className="summary-key">{s.key}</span>
-                </div>
-              ) : null;
-            })}
-          </div>
+      {/* Mobile: tabbed */}
+      <div className="mobile-only" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <div className="sidebar-tabs">
+          <button className={`sidebar-tab ${mobileSection==="details"?"active":""}`} onClick={() => setMobileSection("details")}>
+            Service Details
+          </button>
+          <button className={`sidebar-tab ${mobileSection==="order"?"active":""}`} onClick={() => setMobileSection("order")}>
+            Order of Service
+          </button>
         </div>
-
-        {/* Right: order of service builder */}
-        <div className="prog-order">
-          <div className="prog-section-header">
-            <div className="prog-section-title">Order of Service</div>
-            <div style={{display:"flex",gap:"8px"}}>
-              <button className="pill-btn" onClick={() => addItem("section")}>+ Section</button>
-              <button className="pill-btn accent" onClick={() => addItem("song")}>+ Song</button>
-            </div>
-          </div>
-
-          {program.items.length === 0 && (
-            <div className="empty-state" style={{height:"200px"}}>
-              <div className="empty-icon">📋</div>
-              <div className="empty-text">No items yet</div>
-              <div className="empty-sub">Add a section or song above</div>
-            </div>
-          )}
-
-          <div className="prog-items-list">
-            {program.items.map((item, i) => (
-              <ItemRow
-                key={item.id}
-                item={item}
-                songs={songs}
-                index={i}
-                total={program.items.length}
-                onUpdate={updateItem}
-                onDelete={deleteItem}
-                onMove={moveItem}
-                setlist={setlist}
-                setSetlist={setSetlist}
-              />
-            ))}
-          </div>
+        <div style={{flex:1,overflowY:"auto"}}>
+          {mobileSection === "details" ? <ServiceDetails /> : <OrderOfService />}
         </div>
       </div>
     </div>
