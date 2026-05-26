@@ -224,6 +224,21 @@ export default function ProgramPage({ songs, program, setProgram, setlist, setSe
 
   return (
     <div className="program-wrap">
+      <style>{`
+        @media (max-width: 900px) {
+          .prog-details { padding: 14px !important; }
+          .prog-order { padding: 14px 16px !important; }
+          .prog-field input, .prog-field textarea, .prog-field select { padding: 11px 12px !important; font-size: 0.88rem !important; }
+          .pill-btn { padding: 10px 16px !important; font-size: 0.75rem !important; min-height: 42px; }
+          .pitem { padding: 14px !important; }
+          .prog-select { padding: 10px 12px !important; font-size: 0.85rem !important; min-height: 44px; }
+          .prog-input { padding: 10px 12px !important; font-size: 0.85rem !important; min-height: 44px; }
+          .icon-btn { width: 40px !important; height: 40px !important; font-size: 1rem !important; }
+          .summary-row { min-height: 44px; }
+          .sidebar-tab { padding: 14px 8px !important; font-size: 0.72rem !important; min-height: 50px; }
+          .btn-ghost, .btn-primary { padding: 11px 18px !important; font-size: 0.8rem !important; min-height: 44px; }
+        }
+      `}</style>
       {/* Toolbar */}
       <div className="page-header" style={{flexWrap:"wrap",gap:"8px"}}>
         <div className="prog-toolbar-left">
