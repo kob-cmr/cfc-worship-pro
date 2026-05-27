@@ -184,7 +184,6 @@ function HomePage({ setPage, programs, events }) {
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [splash, setSplash] = useState(true);
-  const [entered, setEntered] = useState(false);
   const [page, setPage] = useState("home");
   const [menuOpen, setMenuOpen] = useState(false);
   const [songs, setSongs] = useState(SAMPLE_SONGS);
@@ -202,12 +201,6 @@ export default function App() {
     <>
       <GlobalStyles />
       <SplashScreen onDone={() => setSplash(false)} />
-    </>
-  );
-  if (!entered) return (
-    <>
-      <GlobalStyles />
-      <AuthScreen onLogin={() => setEntered(true)} />
     </>
   );
 

@@ -74,7 +74,7 @@ function EventModal({ event, onSave, onDelete, onCancel }) {
 }
 
 function DayEventsModal({ date, events, onAdd, onEdit, onClose }) {
-  const dateStr = date.toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  const dateStr = date.toLocaleDateString("en-PH",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
   return (
     <div className="editor-overlay" onClick={onClose}>
       <div className="editor-card" onClick={e=>e.stopPropagation()} style={{maxWidth:400}}>
@@ -107,7 +107,7 @@ function DayEventsModal({ date, events, onAdd, onEdit, onClose }) {
 }
 
 export default function CalendarPage({ events, setEvents }) {
-  const today = new Date();
+  const today = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState(null);
@@ -123,25 +123,42 @@ export default function CalendarPage({ events, setEvents }) {
     else setCurrentMonth(m=>m+1);
   };
 
-  // Build calendar grid
+  // Build calendar grid — use explicit year/month/day to avoid timezone shifting
   const firstDay = new Date(currentYear, currentMonth, 1);
-  const lastDay  = new Date(currentYear, currentMonth+1, 0);
   const startDow = firstDay.getDay(); // 0=Sun
-  const daysInMonth = lastDay.getDate();
+  const daysInMonth = new Date(currentYear, currentMonth+1, 0).getDate();
   const prevMonthDays = new Date(currentYear, currentMonth, 0).getDate();
 
+  // Build a date key as YYYY-MM-DD without timezone conversion
+  const makeDateKey = (y, m, d) => {
+    const mm = String(m+1).padStart(2,"0");
+    const dd = String(d).padStart(2,"0");
+    return `${y}-${mm}-${dd}`;
+  };
+
   const cells = [];
-  for(let i=0;i<startDow;i++) cells.push({day:prevMonthDays-startDow+1+i,current:false,date:new Date(currentYear,currentMonth-1,prevMonthDays-startDow+1+i)});
-  for(let d=1;d<=daysInMonth;d++) cells.push({day:d,current:true,date:new Date(currentYear,currentMonth,d)});
-  const remaining = 42-cells.length;
-  for(let d=1;d<=remaining;d++) cells.push({day:d,current:false,date:new Date(currentYear,currentMonth+1,d)});
+  for(let i=0;i<startDow;i++){
+    const d=prevMonthDays-startDow+1+i;
+    const m=currentMonth-1<0?11:currentMonth-1;
+    const y=currentMonth-1<0?currentYear-1:currentYear;
+    cells.push({day:d,current:false,dateKey:makeDateKey(y,m,d),date:new Date(y,m,d)});
+  }
+  for(let d=1;d<=daysInMonth;d++){
+    cells.push({day:d,current:true,dateKey:makeDateKey(currentYear,currentMonth,d),date:new Date(currentYear,currentMonth,d)});
+  }
+  const remaining=42-cells.length;
+  for(let d=1;d<=remaining;d++){
+    const m=currentMonth+1>11?0:currentMonth+1;
+    const y=currentMonth+1>11?currentYear+1:currentYear;
+    cells.push({day:d,current:false,dateKey:makeDateKey(y,m,d),date:new Date(y,m,d)});
+  }
 
   const dateKey = (d) => d.toISOString().split("T")[0];
-  const isToday = (d) => dateKey(d)===dateKey(today);
-  const eventsOnDay = (d) => events.filter(e=>e.date===dateKey(d));
+  const isToday = (cell) => cell.dateKey === makeDateKey(today.getFullYear(), today.getMonth(), today.getDate());
+  const eventsOnCell = (cell) => events.filter(e => e.date === cell.dateKey);
 
   const handleCellClick = (cell) => {
-    setSelectedDate(cell.date);
+    setSelectedDate(cell);
     setShowDayModal(true);
   };
 
@@ -160,7 +177,7 @@ export default function CalendarPage({ events, setEvents }) {
     setShowDayModal(false);
   };
 
-  const monthName = firstDay.toLocaleDateString("en-US",{month:"long",year:"numeric"});
+  const monthName = firstDay.toLocaleDateString("en-PH",{month:"long",year:"numeric"});
   const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
   // Upcoming events list
@@ -189,10 +206,10 @@ export default function CalendarPage({ events, setEvents }) {
         {/* Grid */}
         <div className="cal-grid">
           {cells.map((cell,i)=>{
-            const dayEvents = eventsOnDay(cell.date);
+            const dayEvents = eventsOnCell(cell);
             return (
               <div key={i}
-                className={`cal-cell ${!cell.current?"other-month":""} ${isToday(cell.date)?"today":""}`}
+                className={`cal-cell ${!cell.current?"other-month":""} ${isToday(cell)?"today":""}`}
                 onClick={()=>handleCellClick(cell)}>
                 <div className="cal-cell-num">{cell.day}</div>
                 {dayEvents.slice(0,2).map(ev=>(
@@ -214,7 +231,7 @@ export default function CalendarPage({ events, setEvents }) {
                 <div className="cal-event-info">
                   <div className="cal-event-title">{ev.title}</div>
                   <div className="cal-event-meta">
-                    {new Date(ev.date+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}
+                    {new Date(ev.date+"T00:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"})}
                     {ev.time && ` · ${ev.time}`}
                     {ev.location && ` · ${ev.location}`}
                   </div>
@@ -226,14 +243,14 @@ export default function CalendarPage({ events, setEvents }) {
       </div>
 
       {/* FAB add button */}
-      <button className="cal-add-fab" onClick={()=>setEditingEvent({ date: selectedDate ? dateKey(selectedDate) : dateKey(today) })}>+</button>
+      <button className="cal-add-fab" onClick={()=>setEditingEvent({ date: selectedDate ? selectedDate.dateKey : makeDateKey(today.getFullYear(),today.getMonth(),today.getDate()) })}>+</button>
 
       {/* Day events modal */}
       {showDayModal && selectedDate && !editingEvent && (
         <DayEventsModal
-          date={selectedDate}
-          events={eventsOnDay(selectedDate)}
-          onAdd={()=>{ setEditingEvent({ date:dateKey(selectedDate) }); setShowDayModal(false); }}
+          date={selectedDate.date}
+          events={eventsOnCell(selectedDate)}
+          onAdd={()=>{ setEditingEvent({ date: selectedDate.dateKey }); setShowDayModal(false); }}
           onEdit={(ev)=>{ setEditingEvent(ev); setShowDayModal(false); }}
           onClose={()=>setShowDayModal(false)}
         />

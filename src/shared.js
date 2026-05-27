@@ -26,22 +26,47 @@ export const TEAM_MEMBERS = [
 // ── Sample Songs ─────────────────────────────────────────────────────────────
 export const SAMPLE_SONGS = [
   {
-    id:1, title:"Amazing Grace", artist:"Traditional", key:"G", semitones:0,
-    lyrics:"Amazing grace how sweet the sound\nThat saved a wretch like me\nI once was lost but now am found\nWas blind but now I see",
-    chords:"G           G7          C\nAmazing grace how sweet the sound\nG              Em       D\nThat saved a wretch like me\nG          G7       C\nI once was lost but now am found\nG    D      G\nWas blind but now I see",
-    drums:"Intro: Soft brushes, 4/4\nVerse: Hi-hat on 8ths, light snare on 2 & 4\nChorus: Open hi-hat, full kit\nOutro: Fade with brushes"
+    id:1, title:"Amazing Grace", artist:"Traditional", key:"G", semitones:0, bpm:"72", tempoSig:"3/4",
+    sections:[
+      { id:"s1-1", type:"Verse", number:1, label:"Verse 1", visible:true,
+        chords:"G           G7          C\nG              Em       D",
+        lyrics:"Amazing grace how sweet the sound\nThat saved a wretch like me",
+        drums:"Soft brushes on snare, hi-hat on 8ths" },
+      { id:"s1-2", type:"Verse", number:2, label:"Verse 2", visible:true,
+        chords:"G          G7       C\nG    D      G",
+        lyrics:"I once was lost but now am found\nWas blind but now I see",
+        drums:"Add kick on 1, build slightly" },
+      { id:"s1-3", type:"Outro", number:null, label:"Outro", visible:true,
+        chords:"G    D    G",
+        lyrics:"Was blind but now I see",
+        drums:"Fade with brushes" },
+    ]
   },
   {
-    id:2, title:"Blessed Be Your Name", artist:"Matt Redman", key:"A", semitones:0,
-    lyrics:"Blessed be Your name in the land that is plentiful\nWhere Your streams of abundance flow\nBlessed be Your name",
-    chords:"A              E             F#m          D\nBlessed be Your name in the land that is plentiful\nA               E                D\nWhere Your streams of abundance flow\nA              E              F#m           D\nBlessed be Your name",
-    drums:"Intro: Kick & snare, medium tempo\nVerse: Straight 8ths on hi-hat\nChorus: Crash on 1, ride on 2&4\nBridge: Build with toms"
+    id:2, title:"Blessed Be Your Name", artist:"Matt Redman", key:"A", semitones:0, bpm:"140", tempoSig:"4/4",
+    sections:[
+      { id:"s2-1", type:"Verse", number:1, label:"Verse 1", visible:true,
+        chords:"A              E             F#m          D\nA               E                D",
+        lyrics:"Blessed be Your name in the land that is plentiful\nWhere Your streams of abundance flow",
+        drums:"Straight 8ths on hi-hat, kick on 1 & 3" },
+      { id:"s2-2", type:"Chorus", number:1, label:"Chorus 1", visible:true,
+        chords:"A              E              F#m           D",
+        lyrics:"Blessed be Your name",
+        drums:"Crash on 1, ride on 2 & 4" },
+    ]
   },
   {
-    id:3, title:"How Great Is Our God", artist:"Chris Tomlin", key:"G", semitones:0,
-    lyrics:"The splendor of the King clothed in majesty\nLet all the earth rejoice all the earth rejoice\nHe wraps Himself in light and darkness tries to hide\nAnd trembles at His voice trembles at His voice",
-    chords:"G                    Em\nThe splendor of the King clothed in majesty\nC                           D\nLet all the earth rejoice all the earth rejoice\nG                    Em\nHe wraps Himself in light and darkness tries to hide\nC                    D\nAnd trembles at His voice trembles at His voice",
-    drums:"Intro: Ride cymbal, building\nVerse: Hi-hat pattern, kick on 1\nChorus: Full kit, crash on downbeats\nTag: Big ending on crash"
+    id:3, title:"How Great Is Our God", artist:"Chris Tomlin", key:"G", semitones:0, bpm:"76", tempoSig:"4/4",
+    sections:[
+      { id:"s3-1", type:"Verse", number:1, label:"Verse 1", visible:true,
+        chords:"G                    Em\nC                           D",
+        lyrics:"The splendor of the King clothed in majesty\nLet all the earth rejoice all the earth rejoice",
+        drums:"Hi-hat pattern, kick on 1, snare on 3" },
+      { id:"s3-2", type:"Chorus", number:1, label:"Chorus 1", visible:true,
+        chords:"G                    Em\nC                    D",
+        lyrics:"He wraps Himself in light and darkness tries to hide\nAnd trembles at His voice trembles at His voice",
+        drums:"Full kit, crash on downbeats" },
+    ]
   },
 ];
 
