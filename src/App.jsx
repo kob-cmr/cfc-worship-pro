@@ -617,6 +617,13 @@ function GlobalStyles() {
         .prog-select,.prog-input{padding:10px 12px!important}
         .pill-btn{padding:9px 14px!important}
       }
+      /* Prevent iOS auto-zoom on input focus (font-size must be >= 16px) */
+      @media(max-width:768px){
+        input,select,textarea{font-size:16px!important}
+        .editor-row{grid-template-columns:1fr!important}
+        .auth-row{grid-template-columns:1fr!important}
+        .prog-field-row{grid-template-columns:1fr!important}
+      }
       @media print{
         .topbar,.preview-toolbar{display:none!important}
         body{background:white!important}
