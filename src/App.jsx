@@ -67,7 +67,8 @@ function BurgerMenu({ page, setPage, open, setOpen }) {
       <div className="menu-backdrop" onClick={() => setOpen(false)} />
       <div className="menu-drawer">
         <div className="menu-header">
-          <img src="/logo.png" alt="CenterStage" className="menu-logo-img"
+          <img src="/logo-icon.png" alt="CenterStage"
+            className="menu-logo-img"
             onError={e => { e.target.style.display="none"; }} />
           <div className="menu-header-text">
             <div className="menu-user-name">CenterStage</div>

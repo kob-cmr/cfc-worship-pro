@@ -64,6 +64,20 @@ function ItemRow({ item, songs, index, total, onUpdate, onDelete, onMove }) {
               placeholder="Notes (optional)" />
           </div>
         )}
+        {/* Duration field for all items */}
+        <div className="prog-duration-row">
+          <span className="prog-duration-label">⏱</span>
+          <input
+            className="prog-input prog-duration-input"
+            type="number"
+            min="0"
+            max="240"
+            value={item.duration || ""}
+            onChange={e => onUpdate({ ...item, duration: e.target.value ? Number(e.target.value) : null })}
+            placeholder="mins"
+          />
+          {item.duration ? <span className="prog-duration-badge">{item.duration} min</span> : null}
+        </div>
       </div>
       <div className="prog-item-actions">
         <button className="icon-btn" disabled={index === 0} onClick={() => onMove(index, -1)}>↑</button>
@@ -72,6 +86,15 @@ function ItemRow({ item, songs, index, total, onUpdate, onDelete, onMove }) {
       </div>
     </div>
   );
+}
+
+// ── Format minutes to h:mm ────────────────────────────────────────────────────
+function formatDuration(mins) {
+  if (!mins) return "0 min";
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h}h ${m}min` : `${h}h`;
 }
 
 // ── Program List (left panel) ─────────────────────────────────────────────────
@@ -260,7 +283,10 @@ export default function ProgramPage({ songs, programs, setPrograms }) {
   );
 
   // ── Order of Service panel ───────────────────────────────────────────────────
-  const OrderOfService = () => !program ? null : (
+  const OrderOfService = () => {
+    if (!program) return null;
+    const totalMins = program.items.reduce((sum, i) => sum + (i.duration || 0), 0);
+    return (
     <div className="prog-order">
       <div className="prog-section-header">
         <div className="prog-section-title">Order of Service</div>
@@ -283,14 +309,28 @@ export default function ProgramPage({ songs, programs, setPrograms }) {
             onUpdate={updateItem} onDelete={deleteItem} onMove={moveItem} />
         ))}
       </div>
+      {totalMins > 0 && (
+        <div className="prog-total-time">
+          <span className="prog-total-label">⏱ Total Duration</span>
+          <span className="prog-total-value">{formatDuration(totalMins)}</span>
+        </div>
+      )}
     </div>
-  );
+  );};
+
 
   const songCount = program?.items.filter(i => i.type === "song" && i.songId).length || 0;
 
   return (
     <div className="program-wrap">
       <style>{`
+        .prog-duration-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+        .prog-duration-label { font-size: .75rem; color: var(--muted); flex-shrink: 0; }
+        .prog-duration-input { max-width: 70px !important; padding: 4px 8px !important; font-size: .78rem !important; text-align: center; }
+        .prog-duration-badge { font-size: .7rem; font-weight: 700; color: var(--accent); background: var(--accent-light); border: 1px solid #BFDBFE; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+        .prog-total-time { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding: 12px 16px; background: var(--accent-light); border: 1.5px solid #BFDBFE; border-radius: 10px; }
+        .prog-total-label { font-size: .78rem; font-weight: 700; color: var(--accent); }
+        .prog-total-value { font-size: 1rem; font-weight: 900; color: var(--accent); font-family: 'Courier Prime', monospace; }
         .prog-list-panel { width: 100%; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
         .prog-list-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 14px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
         .prog-list-items { flex: 1; overflow-y: auto; padding: 8px; }
