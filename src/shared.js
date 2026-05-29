@@ -11,6 +11,44 @@ export function noteToIndex(n){const x=FLAT_MAP[n]||n;return CHROMATIC.indexOf(x
 export function indexToNote(i,f){const x=((i%12)+12)%12;return f?DSP_FLAT[x]:DSP_SHARP[x]}
 export function transposeNote(n,s,f){const i=noteToIndex(n);if(i===-1)return n;return indexToNote(i+s,f)}
 export function noteToNashville(n,r){const ni=noteToIndex(n),ri=noteToIndex(r);if(ni===-1||ri===-1)return n;const iv=((ni-ri)+12)%12;const di=MAJOR_INT.indexOf(iv);if(di===-1){const nd=MAJOR_INT.findIndex(v=>v>iv);return"b"+NNS[nd!==-1?nd:0]}return NNS[di]}
+
+// ── Convert NNS number (e.g. "1","b3","#5") to standard note given root key ──
+export function nashvilleToNote(nnsToken, rootKey, preferFlats=false) {
+  const rootIdx = noteToIndex(rootKey.replace("m",""));
+  if (rootIdx === -1) return nnsToken;
+  // parse flat/sharp prefix and numeral
+  const match = nnsToken.match(/^([b#]?)([1-7])$/);
+  if (!match) return nnsToken;
+  const [, acc, num] = match;
+  const degreeIdx = parseInt(num) - 1;
+  const semis = MAJOR_INT[degreeIdx];
+  if (semis === undefined) return nnsToken;
+  const offset = acc === "b" ? semis - 1 : acc === "#" ? semis + 1 : semis;
+  return indexToNote(rootIdx + offset, preferFlats);
+}
+
+// ── Convert a line that may contain NNS tokens to standard chords ─────────────
+// NNS chord pattern: optional b/# + digit + optional quality + optional slash
+const NNS_CHORD_RE = /([b#]?[1-7])((?:maj|min|m|M|aug|dim|sus|add|dom)?(?:\d+)?(?:\/[b#]?[1-7])?)/g;
+export function isNashvilleLine(line) {
+  const tokens = line.trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return false;
+  const nnsCount = tokens.filter(t => /^[b#]?[1-7](?:maj|min|m|M|aug|dim|sus|add|\d|$)/.test(t)).length;
+  return nnsCount / tokens.length >= 0.5;
+}
+export function nashvilleLineToStandard(line, rootKey, preferFlats=false) {
+  return line.replace(NNS_CHORD_RE, (_, num, quality) => {
+    const note = nashvilleToNote(num, rootKey, preferFlats);
+    // handle slash chord bass note
+    const slashMatch = quality.match(/\/([b#]?[1-7])/);
+    if (slashMatch) {
+      const bassNote = nashvilleToNote(slashMatch[1], rootKey, preferFlats);
+      return note + quality.replace(/\/[b#]?[1-7]/, "/"+bassNote);
+    }
+    return note + quality;
+  });
+}
+
 const CHORD_RE=/([A-G][b#]?)((?:maj|min|m|M|aug|dim|sus|add|dom)?(?:\d+)?(?:\/[A-G][b#]?)?)/g;
 export function transposeChordLine(line,s,f,nash,rk){return line.replace(CHORD_RE,(_,root,q)=>{const tr=transposeNote(root,s,f);if(nash){const sm=q.match(/\/([A-G][b#]?)/);const nn=noteToNashville(tr,rk);const sf=q.replace(/\/[A-G][b#]?/,"").replace(/^m(?!aj|in)/,"m");if(sm){const bn=transposeNote(sm[1],s,f);return nn+sf+"/"+noteToNashville(bn,rk)}return nn+sf}const sm=q.match(/\/([A-G][b#]?)/);if(sm){const bn=transposeNote(sm[1],s,f);return tr+q.replace(/\/[A-G][b#]?/,"/"+bn)}return tr+q})}
 export function isChordLine(line){const t=line.trim().split(/\s+/).filter(Boolean);if(!t.length)return false;const c=t.filter(x=>/^[A-G][b#]?(?:maj|min|m|M|aug|dim|sus|add|\d|\/[A-G])?/.test(x)).length;return c/t.length>=0.5}

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { KEYS, transposeNote, transposeChordLine, isChordLine } from "./shared.js";
+import { KEYS, transposeNote, transposeChordLine, isChordLine, nashvilleLineToStandard, isNashvilleLine } from "./shared.js";
 
 // ── Section types available as buttons ───────────────────────────────────────
 const SECTION_TYPES = ["Intro","Verse","Pre-Chorus","Refrain","Chorus","Bridge","Tag","Interlude","Outro"];
@@ -292,7 +292,20 @@ function SongEditor({ song, onSave, onCancel }) {
 
         <div className="editor-actions" style={{marginTop:14}}>
           <button className="btn-ghost" onClick={onCancel}>Cancel</button>
-          <button className="btn-primary" onClick={() => onSave(form)}>Save Song</button>
+          <button className="btn-primary" onClick={() => {
+            // Convert any NNS lines in each section's chords to standard
+            const rootKey = form.key.replace("m","");
+            const converted = {
+              ...form,
+              sections: (form.sections||[]).map(sec => ({
+                ...sec,
+                chords: (sec.chords||"").split("\n").map(line =>
+                  isNashvilleLine(line) ? nashvilleLineToStandard(line, rootKey) : line
+                ).join("\n")
+              }))
+            };
+            onSave(converted);
+          }}>Save Song</button>
         </div>
       </div>
     </div>

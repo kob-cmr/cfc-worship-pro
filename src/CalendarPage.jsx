@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ProgramPreviewModal } from "./ProgramPreview.jsx";
 
 const EVENT_COLORS = [
   { label:"Orange", value:"#E8621A" },
@@ -24,22 +25,20 @@ function EventModal({ event, onSave, onDelete, onCancel }) {
           <label>Event Title</label>
           <input value={form.title} onChange={e=>set("title",e.target.value)} placeholder="e.g. Music Team Rehearsal"/>
         </div>
-        <div className="editor-row">
-          <div className="editor-field">
-            <label>Date</label>
-            <input type="date" value={form.date} onChange={e=>set("date",e.target.value)}/>
-          </div>
-          <div className="editor-field">
-            <label>Location</label>
-            <input value={form.location} onChange={e=>set("location",e.target.value)} placeholder="Main Hall"/>
-          </div>
+        <div className="editor-field">
+          <label>Date</label>
+          <input type="date" value={form.date} onChange={e=>set("date",e.target.value)}/>
         </div>
-        <div className="editor-row">
-          <div className="editor-field">
+        <div className="editor-field">
+          <label>Location</label>
+          <input value={form.location} onChange={e=>set("location",e.target.value)} placeholder="Main Hall"/>
+        </div>
+        <div className="cal-modal-row">
+          <div className="editor-field" style={{flex:1,marginBottom:0}}>
             <label>Start Time</label>
             <input type="time" value={form.time} onChange={e=>set("time",e.target.value)}/>
           </div>
-          <div className="editor-field">
+          <div className="editor-field" style={{flex:1,marginBottom:0}}>
             <label>End Time</label>
             <input type="time" value={form.endTime} onChange={e=>set("endTime",e.target.value)}/>
           </div>
@@ -106,13 +105,16 @@ function DayEventsModal({ date, events, onAdd, onEdit, onClose }) {
   );
 }
 
-export default function CalendarPage({ events, setEvents }) {
+export default function CalendarPage({ events, setEvents, programs = [], songs = [] }) {
   const today = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState(null);
-  const [editingEvent, setEditingEvent] = useState(null); // null | {} | event
+  const [editingEvent, setEditingEvent] = useState(null);
   const [showDayModal, setShowDayModal] = useState(false);
+  const [previewProgram, setPreviewProgram] = useState(null);
+
+  const findProgramForDate = (dateKey) => programs.find(p => p.date === dateKey) || null;
 
   const prevMonth = () => {
     if (currentMonth===0){ setCurrentMonth(11); setCurrentYear(y=>y-1); }
@@ -187,6 +189,24 @@ export default function CalendarPage({ events, setEvents }) {
 
   return (
     <div className="cal-wrap">
+      <style>{`
+        .cal-modal-row { display: flex; gap: 10px; margin-bottom: 12px; }
+        /* Prevent iOS zoom on input focus — font-size must be >= 16px */
+        @media (max-width: 768px) {
+          .editor-field input,
+          .editor-field select,
+          .editor-field textarea,
+          .prog-field input,
+          .prog-field select,
+          .prog-field textarea,
+          .prog-input,
+          .prog-select,
+          .sec-textarea,
+          .auth-field input {
+            font-size: 16px !important;
+          }
+        }
+      `}</style>
       {/* Month nav */}
       <div className="cal-header">
         <div className="cal-month-nav">
@@ -225,19 +245,28 @@ export default function CalendarPage({ events, setEvents }) {
         {upcoming.length>0 && (
           <div className="cal-events-list">
             <div className="prog-section-title" style={{marginBottom:10,marginTop:4}}>Upcoming Events</div>
-            {upcoming.slice(0,8).map(ev=>(
-              <div key={ev.id} className="cal-event-card" style={{borderLeftColor:ev.color}} onClick={()=>setEditingEvent(ev)}>
-                <div style={{width:10,height:10,borderRadius:"50%",background:ev.color,flexShrink:0,marginTop:3}}/>
-                <div className="cal-event-info">
-                  <div className="cal-event-title">{ev.title}</div>
-                  <div className="cal-event-meta">
-                    {new Date(ev.date+"T00:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"})}
-                    {ev.time && ` · ${ev.time}`}
-                    {ev.location && ` · ${ev.location}`}
+            {upcoming.slice(0,8).map(ev=>{
+              const linkedProg = findProgramForDate(ev.date);
+              return (
+                <div key={ev.id} className="cal-event-card" style={{borderLeftColor:ev.color}}>
+                  <div style={{width:10,height:10,borderRadius:"50%",background:ev.color,flexShrink:0,marginTop:3}}/>
+                  <div className="cal-event-info" onClick={()=>setEditingEvent(ev)} style={{flex:1,cursor:"pointer"}}>
+                    <div className="cal-event-title">{ev.title}</div>
+                    <div className="cal-event-meta">
+                      {new Date(ev.date+"T00:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"})}
+                      {ev.time && ` · ${ev.time}`}
+                      {ev.location && ` · ${ev.location}`}
+                    </div>
                   </div>
+                  {linkedProg && (
+                    <button className="pill-btn accent" style={{fontSize:".65rem",padding:"4px 10px",flexShrink:0}}
+                      onClick={()=>setPreviewProgram(linkedProg)}>
+                      👁 Program
+                    </button>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -263,6 +292,15 @@ export default function CalendarPage({ events, setEvents }) {
           onSave={handleSaveEvent}
           onDelete={handleDeleteEvent}
           onCancel={()=>{ setEditingEvent(null); }}
+        />
+      )}
+
+      {/* Program preview modal */}
+      {previewProgram && (
+        <ProgramPreviewModal
+          program={previewProgram}
+          songs={songs}
+          onClose={()=>setPreviewProgram(null)}
         />
       )}
     </div>

@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
+import { ProgramPreviewModal } from "./ProgramPreview.jsx";
 
 const SECTION_PRESETS = [
   "Pre-Service","Welcome & Announcements","Opening Prayer","Scripture Reading",
@@ -201,112 +202,101 @@ export default function ProgramPage({ songs, programs, setPrograms }) {
   const [previewMode, setPreviewMode] = useState(false);
   const [mobileView, setMobileView] = useState("list");
   const [mobileSection, setMobileSection] = useState("details");
+  const [hasUnsaved, setHasUnsaved] = useState(false);
 
   const program = programs.find(p => p.id === activeId) || null;
 
-  const updateProgram = useCallback((updater) => {
-    setPrograms(ps => ps.map(p => p.id === activeId
-      ? (typeof updater === "function" ? updater(p) : { ...p, ...updater })
-      : p));
-  }, [activeId, setPrograms]);
+  // Local draft — edits go here first, only saved on button click
+  const [draft, setDraft] = useState(null);
+  const activeDraft = draft && draft.id === activeId ? draft : program;
 
   const updateField = useCallback((k, v) => {
-    setPrograms(ps => ps.map(p => p.id === activeId ? { ...p, [k]: v } : p));
-  }, [activeId, setPrograms]);
+    setDraft(prev => {
+      const base = prev?.id === activeId ? prev : program;
+      return { ...base, [k]: v };
+    });
+    setHasUnsaved(true);
+  }, [activeId, program]);
+
+  const updateProgram = useCallback((updater) => {
+    setDraft(prev => {
+      const base = prev?.id === activeId ? prev : program;
+      return typeof updater === "function" ? updater(base) : { ...base, ...updater };
+    });
+    setHasUnsaved(true);
+  }, [activeId, program]);
+
+  const saveChanges = useCallback(() => {
+    if (!draft) return;
+    setPrograms(ps => ps.map(p => p.id === activeId ? draft : p));
+    setHasUnsaved(false);
+  }, [draft, activeId, setPrograms]);
+
+  const discardChanges = useCallback(() => {
+    setDraft(null);
+    setHasUnsaved(false);
+  }, []);
 
   const createProgram = () => {
     const np = newProgram();
     setPrograms(ps => [...ps, np]);
     setActiveId(np.id);
+    setDraft(null);
+    setHasUnsaved(false);
     setMobileView("detail");
   };
 
   const deleteProgram = (id) => {
     const remaining = programs.filter(p => p.id !== id);
     setPrograms(remaining);
-    if (activeId === id) setActiveId(remaining[remaining.length-1]?.id || null);
+    if (activeId === id) {
+      setActiveId(remaining[remaining.length-1]?.id || null);
+      setDraft(null);
+      setHasUnsaved(false);
+    }
   };
 
   const addItem = useCallback((type) => {
     const item = type === "song"
       ? { id: Date.now().toString(), type: "song", songId: null }
       : { id: Date.now().toString(), type: "section", label: "", notes: "" };
-    setPrograms(ps => ps.map(p => p.id === activeId ? { ...p, items: [...p.items, item] } : p));
-  }, [activeId, setPrograms]);
+    updateProgram(p => ({ ...p, items: [...p.items, item] }));
+  }, [updateProgram]);
 
   const updateItem = useCallback((updated) => {
-    setPrograms(ps => ps.map(p => p.id === activeId
-      ? { ...p, items: p.items.map(i => i.id === updated.id ? updated : i) }
-      : p));
-  }, [activeId, setPrograms]);
+    updateProgram(p => ({ ...p, items: p.items.map(i => i.id === updated.id ? updated : i) }));
+  }, [updateProgram]);
 
   const deleteItem = useCallback((id) => {
-    setPrograms(ps => ps.map(p => p.id === activeId
-      ? { ...p, items: p.items.filter(i => i.id !== id) }
-      : p));
-  }, [activeId, setPrograms]);
+    updateProgram(p => ({ ...p, items: p.items.filter(i => i.id !== id) }));
+  }, [updateProgram]);
 
   const moveItem = useCallback((index, dir) => {
-    setPrograms(ps => ps.map(p => {
-      if (p.id !== activeId) return p;
+    updateProgram(p => {
       const items = [...p.items];
       const t = index + dir;
       if (t < 0 || t >= items.length) return p;
       [items[index], items[t]] = [items[t], items[index]];
       return { ...p, items };
-    }));
-  }, [activeId, setPrograms]);
+    });
+  }, [updateProgram]);
 
-  const formatDate = (d) => {
-    if (!d) return "";
-    return new Date(d+"T00:00:00").toLocaleDateString("en-PH",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  // Switch program — warn if unsaved
+  const handleSelectProgram = (id) => {
+    if (hasUnsaved) {
+      if (window.confirm("You have unsaved changes. Discard them?")) {
+        setDraft(null);
+        setHasUnsaved(false);
+        setActiveId(id);
+        setMobileView("detail");
+      }
+    } else {
+      setActiveId(id);
+      setMobileView("detail");
+    }
   };
 
-  // ── Preview ──────────────────────────────────────────────────────────────────
-  if (previewMode && program) return (
-    <div className="preview-wrap">
-      <div className="preview-toolbar">
-        <button className="btn-ghost" onClick={() => setPreviewMode(false)}>← Back</button>
-        <div style={{fontWeight:700,fontSize:"0.85rem"}}>{program.title}</div>
-        <button className="btn-primary" onClick={() => window.print()}>🖨 Print</button>
-      </div>
-      <div className="preview-doc">
-        <div className="preview-church">Worship Service Program</div>
-        <div className="preview-title">{program.title}</div>
-        <div className="preview-date">{formatDate(program.date)}{program.time?` · ${program.time}`:""}</div>
-        {(program.speaker||program.sermonTitle) && (
-          <div className="preview-sermon">
-            {program.sermonTitle && <div className="preview-sermon-title">"{program.sermonTitle}"</div>}
-            {program.speaker && <div className="preview-speaker">Speaker: {program.speaker}</div>}
-          </div>
-        )}
-        {program.scripture && <div className="preview-scripture"><span className="preview-scripture-label">Scripture: </span>{program.scripture}</div>}
-        <div className="preview-divider" />
-        <div className="preview-items">
-          {program.items.map((item, i) => {
-            const song = item.type==="song"?songs.find(s=>s.id===item.songId):null;
-            return (
-              <div key={item.id} className={`preview-item ${item.type}`}>
-                <span className="preview-item-num">{i+1}.</span>
-                {item.type==="song"&&song
-                  ?<div><span className="preview-item-song">{song.title}</span><span className="preview-item-meta"> — {song.artist}</span>{item.duration?<span className="preview-item-note"> · {item.duration}min</span>:null}</div>
-                  :<div><span className="preview-item-section">{item.label}</span>{item.notes&&<span className="preview-item-note"> ({item.notes})</span>}{item.duration?<span className="preview-item-note"> · {item.duration}min</span>:null}</div>}
-              </div>
-            );
-          })}
-        </div>
-        {program.items.reduce((s,i)=>s+(i.duration||0),0)>0 && (
-          <div className="prog-total-time" style={{marginTop:16}}>
-            <span className="prog-total-label">⏱ Total Duration</span>
-            <span className="prog-total-value">{formatDuration(program.items.reduce((s,i)=>s+(i.duration||0),0))}</span>
-          </div>
-        )}
-        {program.notes && <><div className="preview-divider"/><div className="preview-notes"><strong>Notes:</strong> {program.notes}</div></>}
-      </div>
-    </div>
-  );
-
-  const songCount = program?.items.filter(i=>i.type==="song"&&i.songId).length||0;
+  const songCount = activeDraft?.items.filter(i=>i.type==="song"&&i.songId).length||0;
 
   return (
     <div className="program-wrap">
@@ -350,12 +340,26 @@ export default function ProgramPage({ songs, programs, setPrograms }) {
         }
       `}</style>
 
+      {/* Unsaved changes banner */}
+      {hasUnsaved && (
+        <div style={{background:"#FEF9C3",borderBottom:"1px solid #FDE68A",padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexShrink:0}}>
+          <span style={{fontSize:".78rem",fontWeight:600,color:"#92400E"}}>⚠ Unsaved changes</span>
+          <div style={{display:"flex",gap:8}}>
+            <button className="btn-ghost" style={{padding:"5px 12px",fontSize:".72rem"}} onClick={discardChanges}>Discard</button>
+            <button className="btn-primary" style={{padding:"6px 16px",fontSize:".78rem"}} onClick={saveChanges}>💾 Save</button>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="page-header" style={{flexWrap:"wrap",gap:"8px"}}>
         <div className="prog-toolbar-left">
-          {program && <span className="prog-sync-info">{program.title} · {songCount} song{songCount!==1?"s":""}</span>}
+          {activeDraft && <span className="prog-sync-info">{activeDraft.title} · {songCount} song{songCount!==1?"s":""}</span>}
         </div>
-        {program && <button className="btn-ghost" onClick={() => setPreviewMode(true)}>👁 Preview / Print</button>}
+        <div style={{display:"flex",gap:8}}>
+          {activeDraft && <button className="btn-ghost" onClick={() => setPreviewMode(true)}>👁 Preview</button>}
+          {hasUnsaved && <button className="btn-primary" style={{padding:"8px 18px",fontSize:".78rem"}} onClick={saveChanges}>💾 Save</button>}
+        </div>
       </div>
 
       {/* Desktop: 3-column */}
@@ -364,11 +368,11 @@ export default function ProgramPage({ songs, programs, setPrograms }) {
           .desktop-prog{display:none;flex:1;overflow:hidden}
           @media(min-width:768px){.desktop-prog{display:grid!important;grid-template-columns:200px 1fr 1fr;overflow:hidden}}
         `}</style>
-        <ProgramList programs={programs} activeId={activeId} onSelect={setActiveId} onCreate={createProgram} onDelete={deleteProgram} />
+        <ProgramList programs={programs} activeId={activeId} onSelect={handleSelectProgram} onCreate={createProgram} onDelete={deleteProgram} />
         <div style={{borderRight:"1px solid var(--border)",overflow:"hidden",display:"flex",flexDirection:"column"}}>
-          <ServiceDetails program={program} onUpdateField={updateField} />
+          <ServiceDetails program={activeDraft} onUpdateField={updateField} />
         </div>
-        <OrderOfService program={program} songs={songs} onAddItem={addItem} onUpdateItem={updateItem} onDeleteItem={deleteItem} onMoveItem={moveItem} />
+        <OrderOfService program={activeDraft} songs={songs} onAddItem={addItem} onUpdateItem={updateItem} onDeleteItem={deleteItem} onMoveItem={moveItem} />
       </div>
 
       {/* Mobile: list → detail */}
@@ -379,14 +383,14 @@ export default function ProgramPage({ songs, programs, setPrograms }) {
         `}</style>
         {mobileView === "list" ? (
           <ProgramList programs={programs} activeId={activeId}
-            onSelect={id => { setActiveId(id); setMobileView("detail"); }}
+            onSelect={handleSelectProgram}
             onCreate={createProgram} onDelete={deleteProgram} />
         ) : (
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             <div style={{background:"var(--panel)",borderBottom:"1px solid var(--border)",flexShrink:0}}>
               <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"10px 14px",borderBottom:"1px solid var(--border)"}}>
                 <button className="btn-ghost" style={{padding:"7px 12px",fontSize:".78rem"}} onClick={() => setMobileView("list")}>← Programs</button>
-                <span style={{fontWeight:700,fontSize:".85rem",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{program?.title}</span>
+                <span style={{fontWeight:700,fontSize:".85rem",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{activeDraft?.title}</span>
               </div>
               <div className="prog-detail-tabs">
                 <button className={`prog-detail-tab ${mobileSection==="details"?"active":""}`} onClick={() => setMobileSection("details")}>Details</button>
@@ -395,13 +399,22 @@ export default function ProgramPage({ songs, programs, setPrograms }) {
             </div>
             <div style={{flex:1,overflowY:"auto"}}>
               {mobileSection === "details"
-                ? <ServiceDetails program={program} onUpdateField={updateField} />
-                : <OrderOfService program={program} songs={songs} onAddItem={addItem} onUpdateItem={updateItem} onDeleteItem={deleteItem} onMoveItem={moveItem} />
+                ? <ServiceDetails program={activeDraft} onUpdateField={updateField} />
+                : <OrderOfService program={activeDraft} songs={songs} onAddItem={addItem} onUpdateItem={updateItem} onDeleteItem={deleteItem} onMoveItem={moveItem} />
               }
             </div>
           </div>
         )}
       </div>
+
+      {/* Preview modal */}
+      {previewMode && activeDraft && (
+        <ProgramPreviewModal
+          program={activeDraft}
+          songs={songs}
+          onClose={() => setPreviewMode(false)}
+        />
+      )}
     </div>
   );
 }

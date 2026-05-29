@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { SAMPLE_SONGS, INITIAL_PROGRAMS, SAMPLE_EVENTS } from "./shared.js";
 import { supabase, dbLoad, dbSave } from "./supabase.js";
+import { ProgramPreviewModal } from "./ProgramPreview.jsx";
 import SetlistPage from "./SetlistPage.jsx";
 import ProgramPage from "./ProgramPage.jsx";
 import CalendarPage from "./CalendarPage.jsx";
@@ -104,9 +105,10 @@ function TopBar({ title, onBurger }) {
 }
 
 // ── Home Dashboard ────────────────────────────────────────────────────────────
-function HomePage({ setPage, programs, events }) {
+function HomePage({ setPage, programs, events, songs }) {
   const recentProgram = programs.length > 0 ? programs[programs.length-1] : null;
   const today = new Date();
+  const [previewProgram, setPreviewProgram] = useState(null);
   const upcomingEvents = events
     .filter(e => new Date(e.date+"T00:00:00") >= new Date(today.toDateString()))
     .sort((a,b) => new Date(a.date)-new Date(b.date));
@@ -116,6 +118,12 @@ function HomePage({ setPage, programs, events }) {
     { id:"calendar", icon:"📅", label:"Calendar",  desc:upcomingEvents.length>0?`${upcomingEvents.length} upcoming event${upcomingEvents.length>1?"s":""}` : "No upcoming events", color:"#7C3AED", bg:"#F5F3FF" },
     { id:"setlist",  icon:"🎸", label:"Setlist",   desc:recentProgram?`${recentProgram.items.filter(i=>i.type==="song"&&i.songId).length} songs`:"No songs yet", color:"#0D9488", bg:"#F0FDFA" },
   ];
+
+  // Find program linked to an event by matching date
+  const findProgramForEvent = (ev) => {
+    return programs.find(p => p.date === ev.date) || null;
+  };
+
   return (
     <div className="home-wrap">
       <div className="home-banner">
@@ -127,13 +135,13 @@ function HomePage({ setPage, programs, events }) {
       <div className="home-content">
         <div style={{height:20}} />
         {recentProgram && (
-          <div className="home-recent" onClick={() => setPage("program")}>
+          <div className="home-recent" onClick={() => setPreviewProgram(recentProgram)}>
             <div className="home-recent-left">
-              <div className="home-recent-label">Current Service</div>
+              <div className="home-recent-label">Current Service — tap to preview</div>
               <div className="home-recent-title">{recentProgram.title}</div>
               <div className="home-recent-meta">{recentProgram.date}{recentProgram.time?` · ${recentProgram.time}`:""}</div>
             </div>
-            <div className="home-recent-arrow">→</div>
+            <div className="home-recent-arrow">👁</div>
           </div>
         )}
         <div className="home-section-label">Quick Access</div>
@@ -153,18 +161,34 @@ function HomePage({ setPage, programs, events }) {
         {upcomingEvents.length > 0 && (
           <>
             <div className="home-section-label" style={{marginTop:20}}>Upcoming</div>
-            {upcomingEvents.slice(0,3).map(ev=>(
-              <div key={ev.id} className="home-event-row" onClick={()=>setPage("calendar")}>
-                <div className="home-event-dot" style={{background:ev.color}}/>
-                <div className="home-event-info">
-                  <div className="home-event-title">{ev.title}</div>
-                  <div className="home-event-meta">{new Date(ev.date+"T00:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"})}{ev.time?` · ${ev.time}`:""}{ev.location?` · ${ev.location}`:""}</div>
+            {upcomingEvents.slice(0,3).map(ev => {
+              const linkedProg = findProgramForEvent(ev);
+              return (
+                <div key={ev.id} className="home-event-row"
+                  onClick={() => linkedProg ? setPreviewProgram(linkedProg) : setPage("calendar")}>
+                  <div className="home-event-dot" style={{background:ev.color}}/>
+                  <div className="home-event-info">
+                    <div className="home-event-title">{ev.title}</div>
+                    <div className="home-event-meta">
+                      {new Date(ev.date+"T00:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"})}
+                      {ev.time?` · ${ev.time}`:""}
+                      {ev.location?` · ${ev.location}`:""}
+                      {linkedProg ? " · 👁 View program" : ""}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </>
         )}
       </div>
+      {previewProgram && (
+        <ProgramPreviewModal
+          program={previewProgram}
+          songs={songs}
+          onClose={() => setPreviewProgram(null)}
+        />
+      )}
     </div>
   );
 }
@@ -262,10 +286,10 @@ export default function App() {
         <TopBar title={pageTitles[page]||"CenterStage"} onBurger={() => setMenuOpen(true)} />
         <BurgerMenu page={page} setPage={setPage} open={menuOpen} setOpen={setMenuOpen} />
         <div className="page-content">
-          {page==="home"     && <HomePage setPage={setPage} programs={programs} events={events} />}
+          {page==="home"     && <HomePage setPage={setPage} programs={programs} events={events} songs={songs} />}
           {page==="program"  && <ProgramPage songs={songs} setSongs={setSongs} programs={programs} setPrograms={setPrograms} />}
           {page==="setlist"  && <SetlistPage songs={songs} setSongs={setSongs} programs={programs} />}
-          {page==="calendar" && <CalendarPage events={events} setEvents={setEvents} />}
+          {page==="calendar" && <CalendarPage events={events} setEvents={setEvents} programs={programs} songs={songs} />}
         </div>
         <SaveBanner status={saveStatus} />
       </div>
@@ -624,6 +648,13 @@ function GlobalStyles() {
         .auth-row{grid-template-columns:1fr!important}
         .prog-field-row{grid-template-columns:1fr!important}
       }
+      /* Program preview modal */
+      .prog-preview-modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:150;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px)}
+      @media(min-width:600px){.prog-preview-modal-overlay{align-items:center}}
+      .prog-preview-modal{background:var(--panel);width:100%;max-width:640px;max-height:92vh;border-radius:20px 20px 0 0;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-lg)}
+      @media(min-width:600px){.prog-preview-modal{border-radius:20px;max-height:88vh}}
+      .prog-preview-modal-bar{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;gap:8px}
+      .prev-dur{font-size:.7rem;font-weight:700;color:var(--accent);background:var(--accent-light);border:1px solid #BFDBFE;padding:2px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0}
       @media print{
         .topbar,.preview-toolbar{display:none!important}
         body{background:white!important}
