@@ -356,10 +356,7 @@ export default function ProgramPage({ songs, programs, setPrograms }) {
         <div className="prog-toolbar-left">
           {activeDraft && <span className="prog-sync-info">{activeDraft.title} · {songCount} song{songCount!==1?"s":""}</span>}
         </div>
-        <div style={{display:"flex",gap:8}}>
-          {activeDraft && <button className="btn-ghost" onClick={() => setPreviewMode(true)}>👁 Preview</button>}
-          {hasUnsaved && <button className="btn-primary" style={{padding:"8px 18px",fontSize:".78rem"}} onClick={saveChanges}>💾 Save</button>}
-        </div>
+        {activeDraft && <button className="btn-ghost" onClick={() => setPreviewMode(true)}>👁 Preview</button>}
       </div>
 
       {/* Desktop: 3-column */}
