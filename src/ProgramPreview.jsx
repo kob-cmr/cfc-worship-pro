@@ -136,22 +136,49 @@ export function ProgramPreviewDoc({ program, songs }) {
           const song = item.type === "song" ? songs.find(s => s.id === item.songId) : null;
           const name = item.type === "song" ? (song?.title || "—") : (item.label || "—");
           const sub = item.type === "song" ? song?.artist : (item.activity || item.notes);
+          // Songs nested inside this section
+          const sectionSongs = item.type === "section" ? (item.sectionSongs || []) : [];
           return (
-            <div key={item.id} className="ppd-item">
-              <div className="ppd-item-ts">
-                {item.timestamp
-                  ? <span className="ppd-item-ts-val">{fmtTime(item.timestamp)}</span>
-                  : <span className="ppd-item-ts-empty">—</span>}
-              </div>
-              <div className={`ppd-item-body ${item.type}`}>
-                <div className="ppd-item-left">
-                  <div className="ppd-item-num">#{i+1}</div>
-                  <div className="ppd-item-name">{name}</div>
-                  {sub && <div className="ppd-item-sub">{sub}</div>}
-                  {item.inCharge && <div className="ppd-item-sub">👤 {item.inCharge}</div>}
+            <div key={item.id} className="ppd-item" style={{flexDirection:"column"}}>
+              <div style={{display:"flex",alignItems:"stretch"}}>
+                <div className="ppd-item-ts">
+                  {item.timestamp
+                    ? <span className="ppd-item-ts-val">{fmtTime(item.timestamp)}</span>
+                    : <span className="ppd-item-ts-empty">—</span>}
                 </div>
-                {item.duration ? <span className="ppd-item-dur">{item.duration} min</span> : null}
+                <div className={`ppd-item-body ${item.type}`} style={{borderRadius:sectionSongs.length>0?"0":""}}>
+                  <div className="ppd-item-left">
+                    <div className="ppd-item-num">#{i+1}</div>
+                    <div className="ppd-item-name">{name}</div>
+                    {sub && <div className="ppd-item-sub">{sub}</div>}
+                    {item.inCharge && <div className="ppd-item-sub">👤 {item.inCharge}</div>}
+                  </div>
+                  {item.duration ? <span className="ppd-item-dur">{item.duration} min</span> : null}
+                </div>
               </div>
+              {/* Songs inside this section */}
+              {sectionSongs.length > 0 && (
+                <div style={{borderTop:"1px solid #E2E8F0",paddingLeft:76,background:"#FAFBFF"}}>
+                  {sectionSongs.map((ss, si) => {
+                    const ssong = songs.find(s => s.id === ss.songId);
+                    if (!ssong) return null;
+                    return (
+                      <div key={ss.id} style={{
+                        display:"flex",alignItems:"center",gap:10,
+                        padding:"8px 14px",
+                        borderTop: si > 0 ? "1px solid #F1F5F9" : "none",
+                        borderLeft:"4px solid #BFDBFE",
+                      }}>
+                        <span style={{fontSize:".65rem",color:"#94A3B8",minWidth:20,textAlign:"right",fontWeight:700}}>♪{si+1}</span>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:".85rem",fontWeight:700,color:"#1D4ED8"}}>{ssong.title}</div>
+                          <div style={{fontSize:".72rem",color:"#64748B"}}>{ssong.artist} · Key of {ssong.key}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
