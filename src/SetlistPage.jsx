@@ -57,14 +57,15 @@ function renderSections({ sections, displayMode, semitones, useFlats, nashville,
       {displayMode === "chords" && (
         <div className={fsMode ? "fs-chord-block" : "chord-block"}>
           {(sec.chords || "").split("\n").map((line, i) => {
-            if (!line.trim()) return <div key={i} style={{ height: "4px" }} />;
-            if (isChordLine(line)) {
-              const t = transposeChordLine(line, semitones, useFlats, nashville, rootKey);
-              return <div key={i} className={fsMode ? "fs-chord-line" : "chord-line"}
-                style={zoom ? { fontSize: `${zoom}rem` } : {}}>{t || "\u00A0"}</div>;
-            }
-            // Skip lyric lines in chords mode
-            return null;
+            if (!line.trim()) return <div key={i} style={{ height: "6px" }} />;
+            // All non-empty lines in the chords field are chord lines — show everything
+            const t = transposeChordLine(line, semitones, useFlats, nashville, rootKey);
+            return (
+              <div key={i} className={fsMode ? "fs-chord-line" : "chord-line"}
+                style={zoom ? { fontSize: `${zoom}rem` } : {}}>
+                {t || line}
+              </div>
+            );
           })}
         </div>
       )}

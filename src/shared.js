@@ -16,7 +16,6 @@ export function noteToNashville(n,r){const ni=noteToIndex(n),ri=noteToIndex(r);i
 export function nashvilleToNote(nnsToken, rootKey, preferFlats=false) {
   const rootIdx = noteToIndex(rootKey.replace("m",""));
   if (rootIdx === -1) return nnsToken;
-  // parse flat/sharp prefix and numeral
   const match = nnsToken.match(/^([b#]?)([1-7])$/);
   if (!match) return nnsToken;
   const [, acc, num] = match;
@@ -27,31 +26,71 @@ export function nashvilleToNote(nnsToken, rootKey, preferFlats=false) {
   return indexToNote(rootIdx + offset, preferFlats);
 }
 
-// ── Convert a line that may contain NNS tokens to standard chords ─────────────
-// NNS chord pattern: optional b/# + digit + optional quality + optional slash
-const NNS_CHORD_RE = /([b#]?[1-7])((?:maj|min|m|M|aug|dim|sus|add|dom)?(?:\d+)?(?:\/[b#]?[1-7])?)/g;
+// ── Auto-quality rules for NNS degrees ────────────────────────────────────────
+// 1=major, 2=minor, 3=minor, 4=major, 5=major(dom7), 6=minor, 7=diminished
+// Override: append M for major (e.g. 3M = major 3rd), or explicit quality
+const AUTO_QUALITY = { 1:"", 2:"m", 3:"m", 4:"", 5:"", 6:"m", 7:"dim" };
+
+// ── Convert a full NNS chord token to standard chord string ──────────────────
+// Handles: 1, 2m, 3M, b7, 4maj7, 5/1, 6m7, etc.
+function nnsTokenToChord(token, rootKey, preferFlats=false) {
+  // Match: optional acc + numeral + optional explicit quality + optional slash bass
+  const match = token.match(/^([b#]?)([1-7])(M|maj|min|m|aug|dim|sus|add|dom|\d+)?(.*)$/i);
+  if (!match) return token;
+  const [, acc, num, rawQuality, rest] = match;
+  const degree = parseInt(num);
+  const note = nashvilleToNote(acc + num, rootKey, preferFlats);
+
+  let quality = "";
+  if (rawQuality === "M") {
+    // Explicit major override — no suffix
+    quality = "";
+  } else if (rawQuality) {
+    // Explicit quality provided
+    quality = rawQuality.toLowerCase() === "min" ? "m" : rawQuality;
+  } else {
+    // Auto quality from degree
+    quality = AUTO_QUALITY[degree] || "";
+  }
+
+  // Handle slash bass in rest
+  const slashMatch = rest.match(/\/([b#]?[1-7])(.*)/);
+  if (slashMatch) {
+    const bassNote = nashvilleToNote(slashMatch[1], rootKey, preferFlats);
+    return note + quality + "/" + bassNote + (slashMatch[2] || "");
+  }
+
+  return note + quality + (rest || "");
+}
+
+// ── NNS chord line regex — matches NNS tokens ─────────────────────────────────
+const NNS_TOKEN_RE = /([b#]?[1-7])(M|maj|min|m|aug|dim|sus|add|dom|\d+)?(?:\/[b#]?[1-7])?/g;
+
 export function isNashvilleLine(line) {
   const tokens = line.trim().split(/\s+/).filter(Boolean);
   if (!tokens.length) return false;
-  const nnsCount = tokens.filter(t => /^[b#]?[1-7](?:maj|min|m|M|aug|dim|sus|add|\d|$)/.test(t)).length;
+  const nnsCount = tokens.filter(t => /^[b#]?[1-7](?:M|maj|min|m|aug|dim|sus|add|\d|\/[b#]?[1-7]|$)/i.test(t)).length;
   return nnsCount / tokens.length >= 0.5;
 }
+
 export function nashvilleLineToStandard(line, rootKey, preferFlats=false) {
-  return line.replace(NNS_CHORD_RE, (_, num, quality) => {
-    const note = nashvilleToNote(num, rootKey, preferFlats);
-    // handle slash chord bass note
-    const slashMatch = quality.match(/\/([b#]?[1-7])/);
-    if (slashMatch) {
-      const bassNote = nashvilleToNote(slashMatch[1], rootKey, preferFlats);
-      return note + quality.replace(/\/[b#]?[1-7]/, "/"+bassNote);
-    }
-    return note + quality;
-  });
+  // Replace each NNS token with its standard chord
+  return line.replace(/([b#]?[1-7](?:M|maj|min|m|aug|dim|sus|add|dom|\d+)?(?:\/[b#]?[1-7])?)/gi,
+    (token) => nnsTokenToChord(token, rootKey, preferFlats)
+  );
 }
 
 const CHORD_RE=/([A-G][b#]?)((?:maj|min|m|M|aug|dim|sus|add|dom)?(?:\d+)?(?:\/[A-G][b#]?)?)/g;
 export function transposeChordLine(line,s,f,nash,rk){return line.replace(CHORD_RE,(_,root,q)=>{const tr=transposeNote(root,s,f);if(nash){const sm=q.match(/\/([A-G][b#]?)/);const nn=noteToNashville(tr,rk);const sf=q.replace(/\/[A-G][b#]?/,"").replace(/^m(?!aj|in)/,"m");if(sm){const bn=transposeNote(sm[1],s,f);return nn+sf+"/"+noteToNashville(bn,rk)}return nn+sf}const sm=q.match(/\/([A-G][b#]?)/);if(sm){const bn=transposeNote(sm[1],s,f);return tr+q.replace(/\/[A-G][b#]?/,"/"+bn)}return tr+q})}
-export function isChordLine(line){const t=line.trim().split(/\s+/).filter(Boolean);if(!t.length)return false;const c=t.filter(x=>/^[A-G][b#]?(?:maj|min|m|M|aug|dim|sus|add|\d|\/[A-G])?/.test(x)).length;return c/t.length>=0.5}
+
+// ── isChordLine: detect standard OR nashville chord lines ────────────────────
+export function isChordLine(line) {
+  const t = line.trim().split(/\s+/).filter(Boolean);
+  if (!t.length) return false;
+  const standardCount = t.filter(x => /^[A-G][b#]?(?:maj|min|m|M|aug|dim|sus|add|\d|\/[A-G])?/.test(x)).length;
+  if (standardCount / t.length >= 0.5) return true;
+  return isNashvilleLine(line);
+}
 
 // ── Team Members (edit this list to add/remove members) ──────────────────────
 export const TEAM_MEMBERS = [
