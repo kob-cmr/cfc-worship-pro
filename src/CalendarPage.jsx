@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ProgramPreviewModal } from "./ProgramPreview.jsx";
+import { ProgramPreviewModal, fmtTime } from "./ProgramPreview.jsx";
 
 const EVENT_COLORS = [
   { label:"Orange", value:"#E8621A" },
@@ -91,7 +91,7 @@ function DayEventsModal({ date, events, onAdd, onEdit, onClose }) {
               <div className="cal-event-info">
                 <div className="cal-event-title">{ev.title}</div>
                 <div className="cal-event-meta">
-                  {ev.time && `${ev.time}${ev.endTime?` – ${ev.endTime}`:""}`}
+                  {ev.time && `${fmtTime(ev.time)}${ev.endTime?` – ${fmtTime(ev.endTime)}`:""}`}
                   {ev.location && ` · ${ev.location}`}
                 </div>
                 {ev.description && <div style={{fontSize:"0.72rem",color:"var(--muted)",marginTop:3}}>{ev.description}</div>}
@@ -254,7 +254,7 @@ export default function CalendarPage({ events, setEvents, programs = [], songs =
                     <div className="cal-event-title">{ev.title}</div>
                     <div className="cal-event-meta">
                       {new Date(ev.date+"T00:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"})}
-                      {ev.time && ` · ${ev.time}`}
+                      {ev.time && ` · ${fmtTime(ev.time)}`}
                       {ev.location && ` · ${ev.location}`}
                     </div>
                   </div>

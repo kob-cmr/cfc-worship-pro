@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 export function formatDuration(mins) {
   if (!mins) return "0 min";
@@ -15,7 +15,6 @@ export function formatDate(d) {
   });
 }
 
-// ── Add minutes to a HH:MM string ────────────────────────────────────────────
 function addMins(timeStr, mins) {
   if (!timeStr) return null;
   const [h, m] = timeStr.split(":").map(Number);
@@ -25,7 +24,8 @@ function addMins(timeStr, mins) {
   return `${String(nh).padStart(2,"0")}:${String(nm).padStart(2,"0")}`;
 }
 
-function fmtTime(t) {
+// ── 12-hour format ─────────────────────────────────────────────────────────────
+export function fmtTime(t) {
   if (!t) return "";
   const [h, m] = t.split(":").map(Number);
   const ampm = h >= 12 ? "PM" : "AM";
@@ -34,14 +34,13 @@ function fmtTime(t) {
 }
 
 // ── Program Preview Document ──────────────────────────────────────────────────
-export function ProgramPreviewDoc({ program, songs, forExport = false }) {
+export function ProgramPreviewDoc({ program, songs }) {
   if (!program) return null;
 
   const totalMins = program.items.reduce((s, i) => s + (i.duration || 0), 0);
   const startTime = program.time || null;
   const endTime = startTime ? addMins(startTime, totalMins) : null;
 
-  // Build timestamp sequence
   let runningMins = 0;
   const itemsWithTime = program.items.map(item => {
     const ts = startTime ? addMins(startTime, runningMins) : null;
@@ -49,78 +48,71 @@ export function ProgramPreviewDoc({ program, songs, forExport = false }) {
     return { ...item, timestamp: ts };
   });
 
-  const docStyle = forExport ? {
-    background: "#ffffff",
-    padding: "36px 40px",
-    maxWidth: "600px",
-    fontFamily: "Inter, sans-serif",
-    color: "#0F172A",
-    width: "600px",
-  } : {};
-
   return (
-    <div id="prog-preview-doc" style={docStyle}>
+    <div id="prog-preview-doc">
       <style>{`
-        #prog-preview-doc { font-family: 'Inter', sans-serif; }
-        .ppd-header { margin-bottom: 20px; }
-        .ppd-church { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .15em; color: #94A3B8; margin-bottom: 6px; }
-        .ppd-title { font-size: 1.5rem; font-weight: 900; color: #2563EB; letter-spacing: -.02em; margin-bottom: 3px; }
-        .ppd-date { font-size: .82rem; color: #64748B; margin-bottom: 10px; }
-        .ppd-time-banner { display: flex; align-items: center; justify-content: space-between; background: #EFF6FF; border: 1.5px solid #BFDBFE; border-radius: 10px; padding: 10px 16px; margin-bottom: 14px; }
+        #prog-preview-doc {
+          font-family: 'Inter', sans-serif;
+          padding: 32px 28px 36px;
+          max-width: 680px;
+          margin: 0 auto;
+          background: #ffffff;
+        }
+        .ppd-church { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .15em; color: #94A3B8; margin-bottom: 8px; }
+        .ppd-title { font-size: 1.7rem; font-weight: 900; color: #2563EB; letter-spacing: -.02em; margin-bottom: 4px; line-height: 1.1; }
+        .ppd-date { font-size: .88rem; color: #64748B; margin-bottom: 18px; }
+        .ppd-time-banner { display: flex; align-items: center; justify-content: space-around; background: #EFF6FF; border: 2px solid #BFDBFE; border-radius: 14px; padding: 16px 24px; margin-bottom: 20px; }
         .ppd-time-item { text-align: center; }
-        .ppd-time-label { font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #94A3B8; margin-bottom: 2px; }
-        .ppd-time-val { font-size: .95rem; font-weight: 900; color: #1D4ED8; }
-        .ppd-time-arrow { font-size: 1.2rem; color: #93C5FD; }
-        .ppd-sermon { background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; }
-        .ppd-sermon-title { font-size: .92rem; font-weight: 700; margin-bottom: 2px; }
-        .ppd-sermon-speaker { font-size: .75rem; color: #64748B; }
-        .ppd-scripture { font-size: .78rem; color: #64748B; margin-bottom: 12px; font-style: italic; }
-        .ppd-divider { border: none; border-top: 2px solid #E2E8F0; margin: 14px 0; }
-        .ppd-items { display: flex; flex-direction: column; gap: 6px; }
-        .ppd-item { display: flex; align-items: stretch; border-radius: 8px; overflow: hidden; border: 1px solid #E2E8F0; background: #ffffff; }
-        .ppd-item-ts { width: 66px; min-width: 66px; background: #F1F5F9; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 4px; border-right: 1px solid #E2E8F0; }
-        .ppd-item-ts-val { font-size: .7rem; font-weight: 800; color: #2563EB; white-space: nowrap; }
-        .ppd-item-ts-empty { font-size: .6rem; color: #CBD5E1; }
-        .ppd-item-body { flex: 1; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border-left: 3px solid #2563EB; }
+        .ppd-time-label { font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #94A3B8; margin-bottom: 4px; }
+        .ppd-time-val { font-size: 1.1rem; font-weight: 900; color: #1D4ED8; }
+        .ppd-time-arrow { font-size: 1.6rem; color: #93C5FD; }
+        .ppd-sermon { background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; }
+        .ppd-sermon-title { font-size: .98rem; font-weight: 700; margin-bottom: 3px; }
+        .ppd-sermon-speaker { font-size: .78rem; color: #64748B; }
+        .ppd-scripture { font-size: .82rem; color: #64748B; margin-bottom: 16px; font-style: italic; line-height: 1.5; }
+        .ppd-divider { border: none; border-top: 2px solid #E2E8F0; margin: 18px 0; }
+        .ppd-items { display: flex; flex-direction: column; gap: 8px; }
+        .ppd-item { display: flex; align-items: stretch; border-radius: 10px; overflow: hidden; border: 1px solid #E2E8F0; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+        .ppd-item-ts { width: 76px; min-width: 76px; background: #F1F5F9; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px 6px; border-right: 1px solid #E2E8F0; }
+        .ppd-item-ts-val { font-size: .72rem; font-weight: 800; color: #2563EB; white-space: nowrap; }
+        .ppd-item-ts-empty { font-size: .62rem; color: #CBD5E1; }
+        .ppd-item-body { flex: 1; padding: 13px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-left: 4px solid #2563EB; }
         .ppd-item-body.section { border-left-color: #7C3AED; }
         .ppd-item-left { flex: 1; min-width: 0; }
-        .ppd-item-num { font-size: .62rem; color: #94A3B8; font-weight: 700; margin-bottom: 1px; }
-        .ppd-item-name { font-size: .85rem; font-weight: 700; color: #0F172A; }
-        .ppd-item-sub { font-size: .7rem; color: #64748B; margin-top: 1px; }
-        .ppd-item-dur { font-size: .68rem; font-weight: 700; color: #2563EB; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 2px 8px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
-        .ppd-total { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding: 12px 16px; background: #EFF6FF; border: 1.5px solid #BFDBFE; border-radius: 10px; }
-        .ppd-total-label { font-size: .78rem; font-weight: 700; color: #2563EB; }
-        .ppd-total-val { font-size: .95rem; font-weight: 900; color: #1D4ED8; font-family: 'Courier Prime', monospace; }
-        .ppd-finish { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding: 10px 16px; background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 10px; }
-        .ppd-finish-label { font-size: .78rem; font-weight: 700; color: #059669; }
-        .ppd-finish-val { font-size: .95rem; font-weight: 900; color: #047857; }
-        .ppd-notes { font-size: .75rem; color: #64748B; line-height: 1.6; margin-top: 12px; }
+        .ppd-item-num { font-size: .65rem; color: #94A3B8; font-weight: 700; margin-bottom: 2px; }
+        .ppd-item-name { font-size: .92rem; font-weight: 700; color: #0F172A; }
+        .ppd-item-sub { font-size: .75rem; color: #64748B; margin-top: 2px; }
+        .ppd-item-dur { font-size: .72rem; font-weight: 700; color: #2563EB; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 3px 10px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+        .ppd-total { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; padding: 14px 20px; background: #EFF6FF; border: 1.5px solid #BFDBFE; border-radius: 12px; }
+        .ppd-total-label { font-size: .82rem; font-weight: 700; color: #2563EB; }
+        .ppd-total-val { font-size: 1rem; font-weight: 900; color: #1D4ED8; font-family: 'Courier Prime', monospace; }
+        .ppd-notes { font-size: .8rem; color: #64748B; line-height: 1.7; margin-top: 14px; }
       `}</style>
 
-      <div className="ppd-header">
-        <div className="ppd-church">Christian Family Church</div>
-        <div className="ppd-title">{program.title}</div>
-        <div className="ppd-date">{formatDate(program.date)}</div>
-      </div>
+      <div className="ppd-church">Christian Family Church</div>
+      <div className="ppd-title">{program.title}</div>
+      <div className="ppd-date">{formatDate(program.date)}</div>
 
-      {/* Start / End time banner */}
+      {/* Start → Target End banner at top */}
       {startTime && (
         <div className="ppd-time-banner">
           <div className="ppd-time-item">
-            <div className="ppd-time-label">Start</div>
+            <div className="ppd-time-label">▶ Start</div>
             <div className="ppd-time-val">{fmtTime(startTime)}</div>
           </div>
           <div className="ppd-time-arrow">→</div>
-          {endTime && totalMins > 0 ? (
-            <div className="ppd-time-item">
-              <div className="ppd-time-label">Target End</div>
-              <div className="ppd-time-val">{fmtTime(endTime)}</div>
-            </div>
-          ) : (
-            <div className="ppd-time-item">
-              <div className="ppd-time-label">Duration</div>
-              <div className="ppd-time-val">{formatDuration(totalMins)}</div>
-            </div>
+          <div className="ppd-time-item">
+            <div className="ppd-time-label">⏱ Duration</div>
+            <div className="ppd-time-val">{formatDuration(totalMins)}</div>
+          </div>
+          {endTime && totalMins > 0 && (
+            <>
+              <div className="ppd-time-arrow">→</div>
+              <div className="ppd-time-item">
+                <div className="ppd-time-label">🎯 Target End</div>
+                <div className="ppd-time-val">{fmtTime(endTime)}</div>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -132,7 +124,9 @@ export function ProgramPreviewDoc({ program, songs, forExport = false }) {
         </div>
       )}
       {program.scripture && (
-        <div className="ppd-scripture"><strong style={{fontStyle:"normal",color:"#334155"}}>Scripture:</strong> {program.scripture}</div>
+        <div className="ppd-scripture">
+          <strong style={{fontStyle:"normal",color:"#334155"}}>Scripture: </strong>{program.scripture}
+        </div>
       )}
 
       <div className="ppd-divider" />
@@ -141,7 +135,7 @@ export function ProgramPreviewDoc({ program, songs, forExport = false }) {
         {itemsWithTime.map((item, i) => {
           const song = item.type === "song" ? songs.find(s => s.id === item.songId) : null;
           const name = item.type === "song" ? (song?.title || "—") : (item.label || "—");
-          const sub = item.type === "song" ? song?.artist : item.notes;
+          const sub = item.type === "song" ? song?.artist : (item.activity || item.notes);
           return (
             <div key={item.id} className="ppd-item">
               <div className="ppd-item-ts">
@@ -154,6 +148,7 @@ export function ProgramPreviewDoc({ program, songs, forExport = false }) {
                   <div className="ppd-item-num">#{i+1}</div>
                   <div className="ppd-item-name">{name}</div>
                   {sub && <div className="ppd-item-sub">{sub}</div>}
+                  {item.inCharge && <div className="ppd-item-sub">👤 {item.inCharge}</div>}
                 </div>
                 {item.duration ? <span className="ppd-item-dur">{item.duration} min</span> : null}
               </div>
@@ -162,18 +157,14 @@ export function ProgramPreviewDoc({ program, songs, forExport = false }) {
         })}
       </div>
 
+      {/* Total duration only — no Target Finish at bottom */}
       {totalMins > 0 && (
         <div className="ppd-total">
           <span className="ppd-total-label">⏱ Total Duration</span>
           <span className="ppd-total-val">{formatDuration(totalMins)}</span>
         </div>
       )}
-      {endTime && totalMins > 0 && (
-        <div className="ppd-finish">
-          <span className="ppd-finish-label">🎯 Target Finish</span>
-          <span className="ppd-finish-val">{fmtTime(endTime)}</span>
-        </div>
-      )}
+
       {program.notes && (
         <><div className="ppd-divider" /><div className="ppd-notes"><strong>Notes:</strong> {program.notes}</div></>
       )}
@@ -181,7 +172,7 @@ export function ProgramPreviewDoc({ program, songs, forExport = false }) {
   );
 }
 
-// ── Full-screen preview modal with JPG Download ───────────────────────────────
+// ── Preview Modal with Download ───────────────────────────────────────────────
 export function ProgramPreviewModal({ program, songs, onClose }) {
   const [downloading, setDownloading] = useState(false);
   if (!program) return null;
@@ -189,7 +180,6 @@ export function ProgramPreviewModal({ program, songs, onClose }) {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      // Dynamically import html2canvas
       const html2canvas = (await import("html2canvas")).default;
       const el = document.getElementById("prog-preview-doc");
       if (!el) return;
@@ -198,12 +188,17 @@ export function ProgramPreviewModal({ program, songs, onClose }) {
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
+        width: el.scrollWidth,
+        height: el.scrollHeight,
+        windowWidth: el.scrollWidth,
       });
       const url = canvas.toDataURL("image/jpeg", 0.95);
       const a = document.createElement("a");
       a.href = url;
       a.download = `${program.title.replace(/\s+/g,"-")}-${program.date}.jpg`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
     } catch (e) {
       console.error("Download failed:", e);
       alert("Download failed. Try again.");
@@ -220,7 +215,7 @@ export function ProgramPreviewModal({ program, songs, onClose }) {
           <div style={{fontWeight:700,fontSize:".88rem",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",padding:"0 8px"}}>{program.title}</div>
           <button className="btn-primary" style={{fontSize:".78rem",padding:"8px 16px",opacity:downloading?0.7:1}}
             onClick={handleDownload} disabled={downloading}>
-            {downloading ? "⏳ Saving…" : "⬇ Download JPG"}
+            {downloading ? "⏳ Saving…" : "⬇ Download"}
           </button>
         </div>
         <div style={{flex:1,overflowY:"auto"}}>

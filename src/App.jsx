@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { SAMPLE_SONGS, INITIAL_PROGRAMS, SAMPLE_EVENTS } from "./shared.js";
 import { supabase, dbLoad, dbSave } from "./supabase.js";
-import { ProgramPreviewModal } from "./ProgramPreview.jsx";
+import { ProgramPreviewModal, fmtTime } from "./ProgramPreview.jsx";
 import SetlistPage from "./SetlistPage.jsx";
 import ProgramPage from "./ProgramPage.jsx";
 import CalendarPage from "./CalendarPage.jsx";
@@ -171,8 +171,8 @@ function HomePage({ setPage, programs, events, songs }) {
                     <div className="home-event-title">{ev.title}</div>
                     <div className="home-event-meta">
                       {new Date(ev.date+"T00:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"})}
-                      {ev.time?` · ${ev.time}`:""}
-                      {ev.location?` · ${ev.location}`:""}
+                      {ev.time ? ` · ${fmtTime(ev.time)}` : ""}
+                      {ev.location ? ` · ${ev.location}` : ""}
                       {linkedProg ? " · 👁 View program" : ""}
                     </div>
                   </div>
