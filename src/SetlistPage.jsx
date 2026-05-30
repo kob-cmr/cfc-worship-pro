@@ -118,9 +118,8 @@ function SongDisplay({ song, useFlats, nashville, displayMode }) {
 }
 
 // ── Section Editor ────────────────────────────────────────────────────────────
-function SectionEditor({ section, onUpdate, onDelete, onMove, isFirst, isLast }) {
+function SectionEditor({ section, onUpdate, onDelete, onMove, isFirst, isLast, expanded, onToggle }) {
   const [tab, setTab] = useState("chords");
-  const [expanded, setExpanded] = useState(false);
   const tabs = [
     { id:"chords", label:"🎸 Chords" },
     { id:"lyrics", label:"🎤 Lyrics" },
@@ -129,13 +128,13 @@ function SectionEditor({ section, onUpdate, onDelete, onMove, isFirst, isLast })
   return (
     <div className={`sec-editor-card ${expanded?"sec-editor-expanded":""}`}>
       <div className="sec-editor-header">
-        <button className="sec-editor-label-btn" onClick={() => setExpanded(e => !e)}>
+        <button className="sec-editor-label-btn" onClick={onToggle}>
           <span className="sec-editor-label">{section.label}</span>
-          <span style={{fontSize:"0.8rem",marginLeft:6,color:"var(--muted)"}}>{expanded?"▲":"▼"}</span>
+          <span style={{fontSize:".75rem",marginLeft:6,color:"var(--muted)"}}>{expanded?"▲":"▼"}</span>
         </button>
         <div className="sec-editor-actions">
-          <button className="icon-btn" disabled={isFirst} onClick={() => onMove(-1)} title="Move up">↑</button>
-          <button className="icon-btn" disabled={isLast}  onClick={() => onMove(1)}  title="Move down">↓</button>
+          <button className="icon-btn" disabled={isFirst} onClick={() => onMove(-1)}>↑</button>
+          <button className="icon-btn" disabled={isLast}  onClick={() => onMove(1)}>↓</button>
           <button
             className={`sec-visible-btn ${section.visible===false?"hidden":""}`}
             onClick={() => onUpdate({ ...section, visible: section.visible===false ? true : false })}>
@@ -157,21 +156,21 @@ function SectionEditor({ section, onUpdate, onDelete, onMove, isFirst, isLast })
             <textarea className="sec-textarea"
               value={section.chords||""}
               onChange={e => onUpdate({...section, chords:e.target.value})}
-              placeholder={"Chords only — no lyrics:\n\nG    D    Em   C\nG    D    G"}
+              placeholder={"Chords only:\n\nG    D    Em   C\n1    5    6m   4"}
               rows={6}/>
           )}
           {tab === "lyrics" && (
             <textarea className="sec-textarea"
               value={section.lyrics||""}
               onChange={e => onUpdate({...section, lyrics:e.target.value})}
-              placeholder={"Lyrics for this section:\n\nAmazing grace how sweet the sound\nThat saved a wretch like me"}
+              placeholder={"Lyrics:\n\nAmazing grace how sweet the sound\nThat saved a wretch like me"}
               rows={6}/>
           )}
           {tab === "drums" && (
             <textarea className="sec-textarea"
               value={section.drums||""}
               onChange={e => onUpdate({...section, drums:e.target.value})}
-              placeholder={"Drum notes:\n\nHi-hat 8ths, kick on 1 & 3, snare on 2 & 4"}
+              placeholder={"Drum notes:\n\nHi-hat 8ths, kick on 1 & 3"}
               rows={5}/>
           )}
         </>
@@ -185,13 +184,21 @@ function SongEditor({ song, onSave, onCancel }) {
   const [form, setForm] = useState({
     lyrics:"", chords:"", drums:"", sections:[], bpm:"", tempoSig:"4/4", ...song
   });
+  const [expandedId, setExpandedId] = useState(null); // only one section open at a time
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const listRef = useRef(null);
 
   const addSection = (type) => {
     const existing = countOfType(form.sections, type);
     const num = existing > 0 ? existing + 1 : (["Intro","Outro","Bridge","Tag","Interlude"].includes(type) ? null : 1);
     const sec = makeSection(type, num);
-    set("sections", [...form.sections, sec]);
+    const updated = [...form.sections, sec];
+    set("sections", updated);
+    setExpandedId(sec.id);
+    // scroll list to bottom after render
+    setTimeout(() => {
+      if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+    }, 50);
   };
 
   const updateSection = (updated) => {
@@ -200,6 +207,7 @@ function SongEditor({ song, onSave, onCancel }) {
 
   const deleteSection = (id) => {
     set("sections", form.sections.filter(s => s.id !== id));
+    if (expandedId === id) setExpandedId(null);
   };
 
   const moveSection = (idx, dir) => {
@@ -210,91 +218,100 @@ function SongEditor({ song, onSave, onCancel }) {
     set("sections", arr);
   };
 
+  const toggleExpand = (id) => setExpandedId(prev => prev === id ? null : id);
+
   return (
     <div className="editor-overlay">
-      <div className="editor-card" style={{maxWidth:680}}>
-        <h2 className="editor-title">{song.id ? "Edit Song" : "New Song"}</h2>
+      <div className="editor-card" style={{maxWidth:680,display:"flex",flexDirection:"column",padding:0,overflow:"hidden"}}>
+        {/* Fixed top header */}
+        <div className="song-editor-top">
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+            <h2 className="editor-title" style={{margin:0}}>{song.id ? "Edit Song" : "New Song"}</h2>
+            <button className="btn-ghost" style={{padding:"6px 12px",fontSize:".75rem"}} onClick={onCancel}>✕ Cancel</button>
+          </div>
 
-        {/* Basic info */}
-        <div className="editor-row">
-          <div className="editor-field">
-            <label>Title</label>
-            <input value={form.title} onChange={e => set("title", e.target.value)} placeholder="Song title" />
+          {/* Basic info */}
+          <div className="editor-row">
+            <div className="editor-field">
+              <label>Title</label>
+              <input value={form.title} onChange={e => set("title", e.target.value)} placeholder="Song title" />
+            </div>
+            <div className="editor-field">
+              <label>Artist</label>
+              <input value={form.artist} onChange={e => set("artist", e.target.value)} placeholder="Artist name" />
+            </div>
           </div>
-          <div className="editor-field">
-            <label>Artist</label>
-            <input value={form.artist} onChange={e => set("artist", e.target.value)} placeholder="Artist name" />
-          </div>
-        </div>
 
-        {/* Key, BPM, Tempo */}
-        <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"14px"}}>
-          <div className="editor-field" style={{flex:"0 0 120px",marginBottom:0}}>
-            <label>Original Key</label>
-            <select value={form.key} onChange={e => set("key", e.target.value)}>
-              {KEYS.map(k => <option key={k}>{k}</option>)}
-            </select>
+          {/* Key, BPM, Tempo */}
+          <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"12px"}}>
+            <div className="editor-field" style={{flex:"0 0 110px",marginBottom:0}}>
+              <label>Key</label>
+              <select value={form.key} onChange={e => set("key", e.target.value)}>
+                {KEYS.map(k => <option key={k}>{k}</option>)}
+              </select>
+            </div>
+            <div className="editor-field" style={{flex:"0 0 90px",marginBottom:0}}>
+              <label>BPM</label>
+              <input type="number" min="40" max="300" value={form.bpm||""} onChange={e => set("bpm", e.target.value)} placeholder="120" />
+            </div>
+            <div className="editor-field" style={{flex:"0 0 100px",marginBottom:0}}>
+              <label>Time Sig</label>
+              <select value={form.tempoSig||"4/4"} onChange={e => set("tempoSig", e.target.value)}>
+                {TEMPO_SIGS.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
           </div>
-          <div className="editor-field" style={{flex:"0 0 100px",marginBottom:0}}>
-            <label>BPM</label>
-            <input type="number" min="40" max="300" value={form.bpm||""} onChange={e => set("bpm", e.target.value)} placeholder="e.g. 120" />
-          </div>
-          <div className="editor-field" style={{flex:"0 0 110px",marginBottom:0}}>
-            <label>Time Sig</label>
-            <select value={form.tempoSig||"4/4"} onChange={e => set("tempoSig", e.target.value)}>
-              {TEMPO_SIGS.map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-        </div>
 
-        {/* Section builder */}
-        <div className="editor-field" style={{marginBottom:8}}>
-          <label>Add Sections</label>
-          <div className="section-btn-row">
-            {SECTION_TYPES.map(type => (
-              <button key={type} className="section-add-btn" onClick={() => addSection(type)}>
-                + {type}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Arrangement builder */}
-        {form.sections.length > 0 && (
-          <div className="editor-field" style={{marginBottom:8}}>
-            <label>Arrangement & Visibility <span className="label-hint">(👁 Visible / 👁 Hidden — hidden sections won't show in performance)</span></label>
-            <div className="arrangement-pills">
-              {form.sections.map((sec, i) => (
-                <button key={sec.id}
-                  className={`arr-pill ${sec.visible===false?"arr-pill-hidden":""}`}
-                  onClick={() => updateSection({ ...sec, visible: sec.visible===false ? true : false })}>
-                  {sec.label}
-                </button>
+          {/* Section builder buttons */}
+          <div style={{marginBottom:6}}>
+            <label style={{fontSize:".65rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:6}}>Add Section</label>
+            <div className="section-btn-row">
+              {SECTION_TYPES.map(type => (
+                <button key={type} className="section-add-btn" onClick={() => addSection(type)}>+ {type}</button>
               ))}
             </div>
           </div>
-        )}
 
-        {/* Section cards */}
-        <div className="sec-editor-list">
+          {/* Arrangement pills */}
+          {form.sections.length > 0 && (
+            <div style={{marginBottom:6}}>
+              <label style={{fontSize:".65rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:6}}>
+                Arrangement <span style={{fontWeight:400,textTransform:"none",letterSpacing:0}}>— tap to show/hide</span>
+              </label>
+              <div className="arrangement-pills">
+                {form.sections.map(sec => (
+                  <button key={sec.id}
+                    className={`arr-pill ${sec.visible===false?"arr-pill-hidden":""}`}
+                    onClick={() => updateSection({ ...sec, visible: sec.visible===false ? true : false })}>
+                    {sec.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Scrollable section list */}
+        <div className="song-editor-sections" ref={listRef}>
+          {form.sections.length === 0 && (
+            <div style={{padding:"20px",textAlign:"center",color:"var(--muted)",fontSize:".82rem",background:"var(--bg)",borderRadius:"10px",border:"1.5px dashed var(--border)",margin:"0 0 8px"}}>
+              Tap the section buttons above to build your song structure
+            </div>
+          )}
           {form.sections.map((sec, i) => (
             <SectionEditor key={sec.id} section={sec}
+              expanded={expandedId === sec.id}
+              onToggle={() => toggleExpand(sec.id)}
               onUpdate={updateSection}
               onDelete={deleteSection}
               onMove={(dir) => moveSection(i, dir)}
               isFirst={i===0} isLast={i===form.sections.length-1}/>
           ))}
-          {form.sections.length === 0 && (
-            <div style={{padding:"16px",textAlign:"center",color:"var(--muted)",fontSize:"0.82rem",background:"var(--bg)",borderRadius:"10px",border:"1.5px dashed var(--border)"}}>
-              Tap the section buttons above to build your song structure
-            </div>
-          )}
         </div>
 
-        <div className="editor-actions" style={{marginTop:14}}>
-          <button className="btn-ghost" onClick={onCancel}>Cancel</button>
-          <button className="btn-primary" onClick={() => {
-            // Convert any NNS lines in each section's chords to standard
+        {/* Fixed bottom save button */}
+        <div className="song-editor-bottom">
+          <button className="btn-full" onClick={() => {
             const rootKey = form.key.replace("m","");
             const converted = {
               ...form,
@@ -306,7 +323,7 @@ function SongEditor({ song, onSave, onCancel }) {
               }))
             };
             onSave(converted);
-          }}>Save Song</button>
+          }}>💾 Save Song</button>
         </div>
       </div>
     </div>
@@ -318,10 +335,16 @@ function FullscreenView({ setlistSongs, currentIndex, onIndexChange, useFlats, n
   const [zoom, setZoom] = useState(1.15);
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
+  const contentRef = useRef(null);
   const indexRef = useRef(currentIndex);
   const lengthRef = useRef(setlistSongs.length);
   indexRef.current = currentIndex;
   lengthRef.current = setlistSongs.length;
+
+  // Scroll to top whenever song changes
+  useEffect(() => {
+    if (contentRef.current) contentRef.current.scrollTop = 0;
+  }, [currentIndex]);
 
   const goPrev = useCallback(() => { if (indexRef.current > 0) onIndexChange(indexRef.current - 1); }, [onIndexChange]);
   const goNext = useCallback(() => { if (indexRef.current < lengthRef.current - 1) onIndexChange(indexRef.current + 1); }, [onIndexChange]);
@@ -377,7 +400,7 @@ function FullscreenView({ setlistSongs, currentIndex, onIndexChange, useFlats, n
         <button className="fs-zoom-btn" onClick={()=>setZoom(1.15)}>↺</button>
       </div>
 
-      <div className="fs-content" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <div className="fs-content" ref={contentRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <div className="fs-lines">
           {sections.length > 0
             ? renderSections({ sections, displayMode, semitones, useFlats, nashville, rootKey, zoom, fsMode: true })
@@ -594,7 +617,11 @@ export default function SetlistPage({ songs, setSongs, programs }) {
         .drum-line { color: #7C3AED; font-family: 'Courier Prime', monospace; white-space: pre-wrap; word-break: break-word; margin-bottom: 2px; }
         .song-meta-pills { display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap; }
         .meta-pill { font-size: .7rem; font-weight: 700; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 2px 9px; color: var(--muted); }
-        .sec-editor-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; max-height: 460px; overflow-y: auto; }
+        .song-editor-top { padding: 20px 20px 10px; flex-shrink: 0; border-bottom: 1px solid var(--border); background: white; }
+        .song-editor-sections { flex: 1; overflow-y: auto; padding: 12px 20px; display: flex; flex-direction: column; gap: 8px; background: var(--bg); }
+        .song-editor-sections::-webkit-scrollbar { width: 5px; }
+        .song-editor-sections::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        .song-editor-bottom { padding: 12px 20px; border-top: 1px solid var(--border); background: white; flex-shrink: 0; }
         .sec-editor-list::-webkit-scrollbar { width: 4px; }
         .sec-editor-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
         .sec-editor-card { background: var(--bg); border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; transition: box-shadow .15s; }

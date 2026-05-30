@@ -34,50 +34,106 @@ function formatDuration(mins) {
 
 // ── Item Row ──────────────────────────────────────────────────────────────────
 function ItemRow({ item, songs, index, total, onUpdate, onDelete, onMove }) {
+  const [expanded, setExpanded] = useState(false);
   const song = item.type === "song" ? songs.find(s => s.id === item.songId) : null;
+
   return (
-    <div className={`prog-item ${item.type}`}>
-      <div className="prog-item-left">
+    <div className={`prog-item ${item.type}`} style={{flexDirection:"column",gap:0,padding:0}}>
+      {/* Header row — always visible */}
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px"}}>
         <span className="prog-num">{index + 1}</span>
         <span className="prog-type-badge">{item.type === "song" ? "🎵" : "📋"}</span>
-      </div>
-      <div className="prog-item-body">
-        {item.type === "song" ? (
-          <div className="prog-song-info">
+        <div style={{flex:1,minWidth:0}}>
+          {item.type === "song" ? (
             <select className="prog-select" value={item.songId || ""}
               onChange={e => onUpdate({ ...item, songId: Number(e.target.value) || null })}>
               <option value="">— choose a song —</option>
               {songs.map(s => <option key={s.id} value={s.id}>{s.title} ({s.key})</option>)}
             </select>
-            {song && <span className="prog-song-meta">{song.artist} · Key of {song.key}</span>}
-          </div>
-        ) : (
-          <div className="prog-section-info">
+          ) : (
             <input className="prog-input" value={item.label || ""}
               onChange={e => onUpdate({ ...item, label: e.target.value })}
               placeholder="Section name…" list="section-presets" />
-            <datalist id="section-presets">
-              {SECTION_PRESETS.map(p => <option key={p} value={p} />)}
-            </datalist>
-            <input className="prog-input prog-input-sm" value={item.notes || ""}
-              onChange={e => onUpdate({ ...item, notes: e.target.value })}
-              placeholder="Notes (optional)" />
-          </div>
-        )}
-        <div className="prog-duration-row">
-          <span className="prog-duration-label">⏱</span>
-          <input className="prog-input prog-duration-input" type="number"
-            min="0" max="240" value={item.duration || ""}
-            onChange={e => onUpdate({ ...item, duration: e.target.value ? Number(e.target.value) : null })}
-            placeholder="mins" />
-          {item.duration ? <span className="prog-duration-badge">{item.duration} min</span> : null}
+          )}
         </div>
-      </div>
-      <div className="prog-item-actions">
+        <button className="icon-btn" style={{fontSize:".7rem"}} onClick={() => setExpanded(e=>!e)}
+          title={expanded?"Collapse":"Expand"}>
+          {expanded?"▲":"▼"}
+        </button>
         <button className="icon-btn" disabled={index === 0} onClick={() => onMove(index, -1)}>↑</button>
         <button className="icon-btn" disabled={index === total - 1} onClick={() => onMove(index, 1)}>↓</button>
         <button className="icon-btn danger" onClick={() => onDelete(item.id)}>✕</button>
       </div>
+
+      {/* Expanded detail fields */}
+      {expanded && (
+        <div style={{padding:"0 12px 12px",display:"flex",flexDirection:"column",gap:8,borderTop:"1px solid var(--border)"}}>
+          {item.type === "song" && song && (
+            <div style={{fontSize:".75rem",color:"var(--muted)",paddingTop:8}}>{song.artist} · Key of {song.key}</div>
+          )}
+
+          {item.type === "section" && (
+            <>
+              <div style={{paddingTop:8}}>
+                <label style={{fontSize:".62rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:4}}>Activity</label>
+                <input className="prog-input" value={item.activity||""}
+                  onChange={e => onUpdate({...item, activity:e.target.value})}
+                  placeholder="e.g. Praise & Worship, Opening Prayer…" />
+              </div>
+              <div>
+                <label style={{fontSize:".62rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:4}}>In Charge</label>
+                <input className="prog-input" value={item.inCharge||""}
+                  onChange={e => onUpdate({...item, inCharge:e.target.value})}
+                  placeholder="Person responsible…" />
+              </div>
+              <div>
+                <label style={{fontSize:".62rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:4}}>Notes</label>
+                <input className="prog-input" value={item.notes||""}
+                  onChange={e => onUpdate({...item, notes:e.target.value})}
+                  placeholder="Any notes or instructions…" />
+              </div>
+              {/* Songs inside this section */}
+              <div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                  <label style={{fontSize:".62rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)"}}>Songs in this section</label>
+                  <button className="pill-btn accent" style={{fontSize:".65rem",padding:"3px 10px"}}
+                    onClick={() => onUpdate({...item, sectionSongs:[...(item.sectionSongs||[]),{id:`ss-${Date.now()}`,songId:null}]})}>
+                    + Add Song
+                  </button>
+                </div>
+                {(item.sectionSongs||[]).map((ss,si) => {
+                  const ssong = songs.find(s=>s.id===ss.songId);
+                  return (
+                    <div key={ss.id} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+                      <span style={{fontSize:".7rem",color:"var(--muted)",minWidth:18,textAlign:"right"}}>{si+1}.</span>
+                      <select className="prog-select" style={{flex:1}} value={ss.songId||""}
+                        onChange={e => onUpdate({...item, sectionSongs:item.sectionSongs.map(x=>x.id===ss.id?{...x,songId:Number(e.target.value)||null}:x)})}>
+                        <option value="">— choose a song —</option>
+                        {songs.map(s=><option key={s.id} value={s.id}>{s.title} ({s.key})</option>)}
+                      </select>
+                      <button className="icon-btn danger" style={{width:28,height:28}}
+                        onClick={()=>onUpdate({...item,sectionSongs:item.sectionSongs.filter(x=>x.id!==ss.id)})}>✕</button>
+                    </div>
+                  );
+                })}
+                {(item.sectionSongs||[]).length===0 && (
+                  <div style={{fontSize:".72rem",color:"var(--muted)",fontStyle:"italic"}}>No songs added yet.</div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Duration — for all items */}
+          <div className="prog-duration-row">
+            <span className="prog-duration-label">⏱ Duration</span>
+            <input className="prog-input prog-duration-input" type="number"
+              min="0" max="240" value={item.duration||""}
+              onChange={e => onUpdate({...item, duration:e.target.value?Number(e.target.value):null})}
+              placeholder="mins" />
+            {item.duration ? <span className="prog-duration-badge">{item.duration} min</span> : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -165,13 +221,17 @@ function OrderOfService({ program, songs, onAddItem, onUpdateItem, onDeleteItem,
   const totalMins = program.items.reduce((sum, i) => sum + (i.duration || 0), 0);
   return (
     <div className="prog-order">
-      <div className="prog-section-header">
-        <div className="prog-section-title">Order of Service</div>
+      {/* Sticky add buttons */}
+      <div className="prog-order-sticky-header">
+        <div className="prog-section-title" style={{margin:0}}>Order of Service</div>
         <div style={{display:"flex",gap:"6px"}}>
           <button className="pill-btn" onClick={() => onAddItem("section")}>+ Section</button>
           <button className="pill-btn accent" onClick={() => onAddItem("song")}>+ Song</button>
         </div>
       </div>
+      <datalist id="section-presets">
+        {SECTION_PRESETS.map(p => <option key={p} value={p} />)}
+      </datalist>
       {program.items.length === 0 && (
         <div className="empty-state" style={{height:"160px"}}>
           <div className="empty-icon">📋</div>
@@ -301,6 +361,7 @@ export default function ProgramPage({ songs, programs, setPrograms }) {
   return (
     <div className="program-wrap">
       <style>{`
+        .prog-order-sticky-header{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);margin-bottom:10px}
         .prog-duration-row{display:flex;align-items:center;gap:6px;margin-top:4px}
         .prog-duration-label{font-size:.75rem;color:var(--muted);flex-shrink:0}
         .prog-duration-input{max-width:70px!important;padding:4px 8px!important;font-size:.78rem!important;text-align:center}
