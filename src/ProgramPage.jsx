@@ -33,7 +33,7 @@ function formatDuration(mins) {
 }
 
 // ── Item Row ──────────────────────────────────────────────────────────────────
-function ItemRow({ item, songs, index, total, onUpdate, onDelete, onMove }) {
+function ItemRow({ item, songs, index, total, onUpdate, onDelete, onMove, dragHandleProps }) {
   const [expanded, setExpanded] = useState(false);
   const song = item.type === "song" ? songs.find(s => s.id === item.songId) : null;
 
@@ -41,6 +41,8 @@ function ItemRow({ item, songs, index, total, onUpdate, onDelete, onMove }) {
     <div className={`prog-item ${item.type}`} style={{flexDirection:"column",gap:0,padding:0}}>
       {/* Header row — always visible */}
       <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px"}}>
+        {/* Drag handle */}
+        <span className="prog-drag-handle" {...dragHandleProps} title="Drag to reorder">⠿</span>
         <span className="prog-num">{index + 1}</span>
         <span className="prog-type-badge">{item.type === "song" ? "🎵" : "📋"}</span>
         <div style={{flex:1,minWidth:0}}>
@@ -60,8 +62,6 @@ function ItemRow({ item, songs, index, total, onUpdate, onDelete, onMove }) {
           title={expanded?"Collapse":"Expand"}>
           {expanded?"▲":"▼"}
         </button>
-        <button className="icon-btn" disabled={index === 0} onClick={() => onMove(index, -1)}>↑</button>
-        <button className="icon-btn" disabled={index === total - 1} onClick={() => onMove(index, 1)}>↓</button>
         <button className="icon-btn danger" onClick={() => onDelete(item.id)}>✕</button>
       </div>
 
@@ -217,8 +217,27 @@ function ServiceDetails({ program, onUpdateField }) {
 
 // ── Order of Service panel — standalone component (NOT nested) ────────────────
 function OrderOfService({ program, songs, onAddItem, onUpdateItem, onDeleteItem, onMoveItem }) {
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+
   if (!program) return null;
   const totalMins = program.items.reduce((sum, i) => sum + (i.duration || 0), 0);
+
+  const handleDragStart = (e, idx) => {
+    setDragIdx(idx);
+    e.dataTransfer.effectAllowed = "move";
+  };
+  const handleDragOver = (e, idx) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverIdx(idx);
+  };
+  const handleDrop = (idx) => {
+    if (dragIdx === null || dragIdx === idx) { setDragIdx(null); setDragOverIdx(null); return; }
+    onMoveItem(dragIdx, idx);
+    setDragIdx(null); setDragOverIdx(null);
+  };
+
   return (
     <div className="prog-order">
       {/* Sticky add buttons */}
@@ -241,9 +260,25 @@ function OrderOfService({ program, songs, onAddItem, onUpdateItem, onDeleteItem,
       )}
       <div className="prog-items-list">
         {program.items.map((item, i) => (
-          <ItemRow key={item.id} item={item} songs={songs} index={i}
-            total={program.items.length}
-            onUpdate={onUpdateItem} onDelete={onDeleteItem} onMove={onMoveItem} />
+          <div key={item.id}
+            draggable
+            onDragStart={e => handleDragStart(e, i)}
+            onDragOver={e => handleDragOver(e, i)}
+            onDrop={() => handleDrop(i)}
+            onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+            style={{
+              opacity: dragIdx === i ? 0.4 : 1,
+              borderRadius: 10,
+              border: dragOverIdx === i && dragIdx !== i ? "2px dashed var(--accent)" : "2px solid transparent",
+              transition: "border .1s, opacity .1s",
+            }}>
+            <ItemRow
+              item={item} songs={songs} index={i}
+              total={program.items.length}
+              onUpdate={onUpdateItem} onDelete={onDeleteItem}
+              onMove={onMoveItem}
+            />
+          </div>
         ))}
       </div>
       {totalMins > 0 && (
@@ -331,12 +366,11 @@ export default function ProgramPage({ songs, programs, setPrograms }) {
     updateProgram(p => ({ ...p, items: p.items.filter(i => i.id !== id) }));
   }, [updateProgram]);
 
-  const moveItem = useCallback((index, dir) => {
+  const moveItem = useCallback((from, to) => {
     updateProgram(p => {
       const items = [...p.items];
-      const t = index + dir;
-      if (t < 0 || t >= items.length) return p;
-      [items[index], items[t]] = [items[t], items[index]];
+      const [moved] = items.splice(from, 1);
+      items.splice(to, 0, moved);
       return { ...p, items };
     });
   }, [updateProgram]);
@@ -361,6 +395,8 @@ export default function ProgramPage({ songs, programs, setPrograms }) {
   return (
     <div className="program-wrap">
       <style>{`
+        .prog-drag-handle{font-size:1rem;color:var(--muted);cursor:grab;padding:2px 4px;flex-shrink:0;user-select:none}
+        .prog-drag-handle:active{cursor:grabbing}
         .prog-order-sticky-header{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);margin-bottom:10px}
         .prog-duration-row{display:flex;align-items:center;gap:6px;margin-top:4px}
         .prog-duration-label{font-size:.75rem;color:var(--muted);flex-shrink:0}

@@ -184,7 +184,8 @@ function SongEditor({ song, onSave, onCancel }) {
   const [form, setForm] = useState({
     lyrics:"", chords:"", drums:"", sections:[], bpm:"", tempoSig:"4/4", ...song
   });
-  const [expandedId, setExpandedId] = useState(null); // only one section open at a time
+  const [expandedId, setExpandedId] = useState(null);
+  const [detailsOpen, setDetailsOpen] = useState(true); // collapsible top section
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const listRef = useRef(null);
 
@@ -192,97 +193,94 @@ function SongEditor({ song, onSave, onCancel }) {
     const existing = countOfType(form.sections, type);
     const num = existing > 0 ? existing + 1 : (["Intro","Outro","Bridge","Tag","Interlude"].includes(type) ? null : 1);
     const sec = makeSection(type, num);
-    const updated = [...form.sections, sec];
-    set("sections", updated);
+    set("sections", [...form.sections, sec]);
     setExpandedId(sec.id);
-    // scroll list to bottom after render
     setTimeout(() => {
       if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-    }, 50);
+    }, 60);
   };
 
-  const updateSection = (updated) => {
-    set("sections", form.sections.map(s => s.id === updated.id ? updated : s));
-  };
-
-  const deleteSection = (id) => {
-    set("sections", form.sections.filter(s => s.id !== id));
-    if (expandedId === id) setExpandedId(null);
-  };
-
-  const moveSection = (idx, dir) => {
-    const arr = [...form.sections];
-    const to = idx + dir;
-    if (to < 0 || to >= arr.length) return;
-    [arr[idx], arr[to]] = [arr[to], arr[idx]];
-    set("sections", arr);
-  };
-
-  const toggleExpand = (id) => setExpandedId(prev => prev === id ? null : id);
+  const updateSection = (updated) => set("sections", form.sections.map(s => s.id === updated.id ? updated : s));
+  const deleteSection = (id) => { set("sections", form.sections.filter(s => s.id !== id)); if (expandedId===id) setExpandedId(null); };
+  const moveSection = (idx, dir) => { const arr=[...form.sections],to=idx+dir; if(to<0||to>=arr.length)return; [arr[idx],arr[to]]=[arr[to],arr[idx]]; set("sections",arr); };
+  const toggleExpand = (id) => setExpandedId(prev => prev===id ? null : id);
 
   return (
-    <div className="editor-overlay">
-      <div className="editor-card" style={{maxWidth:680,display:"flex",flexDirection:"column",padding:0,overflow:"hidden"}}>
-        {/* Fixed top header */}
-        <div className="song-editor-top">
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-            <h2 className="editor-title" style={{margin:0}}>{song.id ? "Edit Song" : "New Song"}</h2>
-            <button className="btn-ghost" style={{padding:"6px 12px",fontSize:".75rem"}} onClick={onCancel}>✕ Cancel</button>
-          </div>
+    <div className="editor-overlay" style={{alignItems:"stretch",padding:0}}>
+      <div style={{
+        background:"white", display:"flex", flexDirection:"column",
+        width:"100%", maxWidth:680, margin:"0 auto",
+        height:"100%", maxHeight:"100vh",
+        borderRadius:0, overflow:"hidden",
+      }}>
+        {/* ── Fixed top bar: title + cancel ── */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 18px 10px",borderBottom:"1px solid var(--border)",flexShrink:0,background:"white"}}>
+          <h2 className="editor-title" style={{margin:0,fontSize:"1rem"}}>{song.id ? "Edit Song" : "New Song"}</h2>
+          <button className="btn-ghost" style={{padding:"6px 12px",fontSize:".75rem"}} onClick={onCancel}>✕</button>
+        </div>
 
-          {/* Basic info */}
-          <div className="editor-row">
-            <div className="editor-field">
-              <label>Title</label>
-              <input value={form.title} onChange={e => set("title", e.target.value)} placeholder="Song title" />
+        {/* ── Collapsible details section ── */}
+        <div style={{flexShrink:0,borderBottom:"1px solid var(--border)",background:"white"}}>
+          <button
+            onClick={() => setDetailsOpen(o=>!o)}
+            style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 18px",border:"none",background:"transparent",cursor:"pointer",fontSize:".75rem",fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em"}}>
+            <span>Song Details</span>
+            <span>{detailsOpen ? "▲ Hide" : "▼ Show"}</span>
+          </button>
+          {detailsOpen && (
+            <div style={{padding:"0 18px 12px"}}>
+              <div className="editor-row" style={{marginBottom:0}}>
+                <div className="editor-field">
+                  <label>Title</label>
+                  <input value={form.title} onChange={e=>set("title",e.target.value)} placeholder="Song title"/>
+                </div>
+                <div className="editor-field">
+                  <label>Artist</label>
+                  <input value={form.artist} onChange={e=>set("artist",e.target.value)} placeholder="Artist name"/>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                <div className="editor-field" style={{flex:"0 0 100px",marginBottom:0}}>
+                  <label>Key</label>
+                  <select value={form.key} onChange={e=>set("key",e.target.value)}>
+                    {KEYS.map(k=><option key={k}>{k}</option>)}
+                  </select>
+                </div>
+                <div className="editor-field" style={{flex:"0 0 80px",marginBottom:0}}>
+                  <label>BPM</label>
+                  <input type="number" min="40" max="300" value={form.bpm||""} onChange={e=>set("bpm",e.target.value)} placeholder="120"/>
+                </div>
+                <div className="editor-field" style={{flex:"0 0 90px",marginBottom:0}}>
+                  <label>Time Sig</label>
+                  <select value={form.tempoSig||"4/4"} onChange={e=>set("tempoSig",e.target.value)}>
+                    {TEMPO_SIGS.map(t=><option key={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
             </div>
-            <div className="editor-field">
-              <label>Artist</label>
-              <input value={form.artist} onChange={e => set("artist", e.target.value)} placeholder="Artist name" />
-            </div>
-          </div>
+          )}
+        </div>
 
-          {/* Key, BPM, Tempo */}
-          <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"12px"}}>
-            <div className="editor-field" style={{flex:"0 0 110px",marginBottom:0}}>
-              <label>Key</label>
-              <select value={form.key} onChange={e => set("key", e.target.value)}>
-                {KEYS.map(k => <option key={k}>{k}</option>)}
-              </select>
-            </div>
-            <div className="editor-field" style={{flex:"0 0 90px",marginBottom:0}}>
-              <label>BPM</label>
-              <input type="number" min="40" max="300" value={form.bpm||""} onChange={e => set("bpm", e.target.value)} placeholder="120" />
-            </div>
-            <div className="editor-field" style={{flex:"0 0 100px",marginBottom:0}}>
-              <label>Time Sig</label>
-              <select value={form.tempoSig||"4/4"} onChange={e => set("tempoSig", e.target.value)}>
-                {TEMPO_SIGS.map(t => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Section builder buttons */}
-          <div style={{marginBottom:6}}>
-            <label style={{fontSize:".65rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:6}}>Add Section</label>
+        {/* ── Fixed: section add buttons + arrangement ── */}
+        <div style={{flexShrink:0,borderBottom:"1px solid var(--border)",padding:"10px 18px",background:"white"}}>
+          <div style={{marginBottom:form.sections.length>0?8:0}}>
+            <label style={{fontSize:".62rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:6}}>Add Section</label>
             <div className="section-btn-row">
-              {SECTION_TYPES.map(type => (
-                <button key={type} className="section-add-btn" onClick={() => addSection(type)}>+ {type}</button>
+              {SECTION_TYPES.map(type=>(
+                <button key={type} className="section-add-btn" onClick={()=>addSection(type)}>+ {type}</button>
               ))}
             </div>
           </div>
-
-          {/* Arrangement pills */}
           {form.sections.length > 0 && (
-            <div style={{marginBottom:6}}>
-              <label style={{fontSize:".65rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:6}}>
+            <div>
+              <label style={{fontSize:".62rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:5}}>
                 Arrangement <span style={{fontWeight:400,textTransform:"none",letterSpacing:0}}>— tap to show/hide</span>
               </label>
               <div className="arrangement-pills">
-                {form.sections.map(sec => (
+                {form.sections.map(sec=>(
                   <button key={sec.id}
                     className={`arr-pill ${sec.visible===false?"arr-pill-hidden":""}`}
-                    onClick={() => updateSection({ ...sec, visible: sec.visible===false ? true : false })}>
+                    onClick={()=>updateSection({...sec,visible:sec.visible===false?true:false})}>
                     {sec.label}
                   </button>
                 ))}
@@ -291,34 +289,34 @@ function SongEditor({ song, onSave, onCancel }) {
           )}
         </div>
 
-        {/* Scrollable section list */}
-        <div className="song-editor-sections" ref={listRef}>
-          {form.sections.length === 0 && (
-            <div style={{padding:"20px",textAlign:"center",color:"var(--muted)",fontSize:".82rem",background:"var(--bg)",borderRadius:"10px",border:"1.5px dashed var(--border)",margin:"0 0 8px"}}>
+        {/* ── Scrollable sections list ── */}
+        <div ref={listRef} style={{flex:1,overflowY:"auto",padding:"10px 18px",display:"flex",flexDirection:"column",gap:8,background:"var(--bg)"}}>
+          {form.sections.length===0 && (
+            <div style={{padding:"20px",textAlign:"center",color:"var(--muted)",fontSize:".82rem",background:"white",borderRadius:"10px",border:"1.5px dashed var(--border)"}}>
               Tap the section buttons above to build your song structure
             </div>
           )}
-          {form.sections.map((sec, i) => (
+          {form.sections.map((sec,i)=>(
             <SectionEditor key={sec.id} section={sec}
-              expanded={expandedId === sec.id}
-              onToggle={() => toggleExpand(sec.id)}
+              expanded={expandedId===sec.id}
+              onToggle={()=>toggleExpand(sec.id)}
               onUpdate={updateSection}
               onDelete={deleteSection}
-              onMove={(dir) => moveSection(i, dir)}
+              onMove={(dir)=>moveSection(i,dir)}
               isFirst={i===0} isLast={i===form.sections.length-1}/>
           ))}
         </div>
 
-        {/* Fixed bottom save button */}
-        <div className="song-editor-bottom">
-          <button className="btn-full" onClick={() => {
-            const rootKey = form.key.replace("m","");
-            const converted = {
+        {/* ── Fixed save button ── */}
+        <div style={{padding:"12px 18px",borderTop:"1px solid var(--border)",background:"white",flexShrink:0}}>
+          <button className="btn-full" onClick={()=>{
+            const rootKey=form.key.replace("m","");
+            const converted={
               ...form,
-              sections: (form.sections||[]).map(sec => ({
+              sections:(form.sections||[]).map(sec=>({
                 ...sec,
-                chords: (sec.chords||"").split("\n").map(line =>
-                  isNashvilleLine(line) ? nashvilleLineToStandard(line, rootKey) : line
+                chords:(sec.chords||"").split("\n").map(line=>
+                  isNashvilleLine(line)?nashvilleLineToStandard(line,rootKey):line
                 ).join("\n")
               }))
             };
@@ -430,15 +428,37 @@ function FullscreenView({ setlistSongs, currentIndex, onIndexChange, useFlats, n
 
 // ── Main SetlistPage ──────────────────────────────────────────────────────────
 export default function SetlistPage({ songs, setSongs, programs }) {
-  // Program selector — default to most recent
   const [selectedProgramId, setSelectedProgramId] = useState(
     programs.length > 0 ? programs[programs.length-1].id : null
   );
   const selectedProgram = programs.find(p => p.id === selectedProgramId) || programs[programs.length-1] || null;
-  const setlist = selectedProgram
-    ? selectedProgram.items.filter(i => i.type==="song" && i.songId).map(i => i.songId)
-    : [];
-  const setSetlist = () => {}; // setlist is derived from program, read-only here
+
+  // Build an ordered list of { type: "divider"|"song", label?, songId?, song? }
+  // from the program items — sections become dividers, songs come after their section
+  const setlistItems = (() => {
+    if (!selectedProgram) return [];
+    const result = [];
+    for (const item of selectedProgram.items) {
+      if (item.type === "section") {
+        // Add section divider
+        result.push({ type: "divider", id: item.id, label: item.label || item.activity || "Section" });
+        // Add any songs nested inside this section
+        for (const ss of (item.sectionSongs || [])) {
+          const song = songs.find(s => s.id === ss.songId);
+          if (song) result.push({ type: "song", id: `ss-${ss.id}`, song, sectionLabel: item.label });
+        }
+      } else if (item.type === "song" && item.songId) {
+        const song = songs.find(s => s.id === item.songId);
+        if (song) result.push({ type: "song", id: `prog-${item.id}`, song, sectionLabel: null });
+      }
+    }
+    return result;
+  })();
+
+  const setlistSongs = setlistItems.filter(i => i.type === "song").map(i => i.song);
+  const setlist = setlistSongs.map(s => s.id);
+  const setSetlist = () => {};
+
   const [activeSong, setActiveSong] = useState(setlist[0]||null);
   const [useFlats, setUseFlats] = useState(false);
   const [nashville, setNashville] = useState(false);
@@ -452,7 +472,6 @@ export default function SetlistPage({ songs, setSongs, programs }) {
   const [dragging, setDragging] = useState(null);
 
   const currentSong = songs.find(s=>s.id===activeSong);
-  const setlistSongs = setlist.map(id=>songs.find(s=>s.id===id)).filter(Boolean);
   const currentSetlistIndex = setlistSongs.findIndex(s=>s.id===activeSong);
 
   const openFullscreen = () => {
@@ -484,18 +503,11 @@ export default function SetlistPage({ songs, setSongs, programs }) {
   };
   const deleteSong = (id) => {
     setSongs(ss=>ss.filter(s=>s.id!==id));
-    setSetlist(sl=>sl.filter(sid=>sid!==id));
     if (activeSong===id) setActiveSong(null);
   };
-  const toggleSetlist = (id) => {
-    setSetlist(sl=>sl.includes(id)?sl.filter(s=>s!==id):[...sl,id]);
-  };
+  const toggleSetlist = () => {};
   const handleDrop = (targetId) => {
     if (!dragging||dragging===targetId){setDragging(null);setDragOver(null);return;}
-    setSetlist(sl=>{
-      const from=sl.indexOf(dragging),to=sl.indexOf(targetId);
-      const next=[...sl];next.splice(from,1);next.splice(to,0,dragging);return next;
-    });
     setDragging(null);setDragOver(null);
   };
   const selectSong = (id)=>{setActiveSong(id);setMobileView("song");};
@@ -503,39 +515,46 @@ export default function SetlistPage({ songs, setSongs, programs }) {
   const SongList = ({mobile=false})=>(
     <>
       <div className="sidebar-tabs">
-        <button className={`sidebar-tab ${sideView==="setlist"?"active":""}`} onClick={()=>setSideView("setlist")}>Setlist ({setlist.length})</button>
+        <button className={`sidebar-tab ${sideView==="setlist"?"active":""}`} onClick={()=>setSideView("setlist")}>Setlist ({setlistSongs.length})</button>
         <button className={`sidebar-tab ${sideView==="library"?"active":""}`} onClick={()=>setSideView("library")}>Library ({songs.length})</button>
       </div>
       <div className="sidebar-list">
-        {sideView==="setlist"&&setlistSongs.map((song,i)=>(
-          <div key={song.id}
-            className={`song-row ${activeSong===song.id?"active":""} ${!mobile&&dragOver===song.id?"drag-over":""}`}
-            onClick={()=>mobile?selectSong(song.id):setActiveSong(song.id)}
-            draggable={!mobile}
-            onDragStart={()=>!mobile&&setDragging(song.id)}
-            onDragOver={e=>{e.preventDefault();!mobile&&setDragOver(song.id);}}
-            onDrop={()=>!mobile&&handleDrop(song.id)}
-            onDragEnd={()=>{setDragging(null);setDragOver(null);}}>
-            {!mobile&&<span className="drag-handle">⠿</span>}
-            <span className="song-row-num">{i+1}</span>
-            <div className="song-row-info">
-              <div className="song-row-title">{song.title}</div>
-              <div className="song-row-meta">{song.artist}</div>
-            </div>
-            <span className="song-row-key">
-              {(()=>{
-                const root=transposeNote(song.key.replace("m",""),song.semitones||0,useFlats);
-                const k=root+(song.key.includes("m")&&!song.key.includes("maj")?"m":"");
-                return k+(song.semitones?` ${song.semitones>0?"+":""}${song.semitones}`:"");
-              })()}
-            </span>
-            <div className="song-row-actions" style={mobile?{opacity:1}:{}}>
-              <button className="row-btn" onClick={e=>{e.stopPropagation();setEditing(song);}}>✏️</button>
-              <button className="row-btn remove" onClick={e=>{e.stopPropagation();toggleSetlist(song.id);}}>✕</button>
-            </div>
-          </div>
-        ))}
-        {sideView==="setlist"&&setlistSongs.length===0&&<div className="empty-sidebar">No songs in setlist.<br/>Go to Library to add.</div>}
+        {sideView==="setlist" && (
+          setlistItems.length === 0
+            ? <div className="empty-sidebar">No songs in program.<br/>Add songs in the Program tab.</div>
+            : setlistItems.map((item, i) => {
+                if (item.type === "divider") {
+                  return (
+                    <div key={item.id} className="setlist-section-divider">
+                      {item.label}
+                    </div>
+                  );
+                }
+                const song = item.song;
+                const songIdx = setlistSongs.findIndex(s => s.id === song.id);
+                return (
+                  <div key={item.id}
+                    className={`song-row ${activeSong===song.id?"active":""}`}
+                    onClick={()=>mobile?selectSong(song.id):setActiveSong(song.id)}>
+                    <span className="song-row-num">{songIdx+1}</span>
+                    <div className="song-row-info">
+                      <div className="song-row-title">{song.title}</div>
+                      <div className="song-row-meta">{song.artist}</div>
+                    </div>
+                    <span className="song-row-key">
+                      {(()=>{
+                        const root=transposeNote(song.key.replace("m",""),song.semitones||0,useFlats);
+                        const k=root+(song.key.includes("m")&&!song.key.includes("maj")?"m":"");
+                        return k+(song.semitones?` ${song.semitones>0?"+":""}${song.semitones}`:"");
+                      })()}
+                    </span>
+                    <div className="song-row-actions" style={mobile?{opacity:1}:{}}>
+                      <button className="row-btn" onClick={e=>{e.stopPropagation();setEditing(song);}}>✏️</button>
+                    </div>
+                  </div>
+                );
+              })
+        )}
         {sideView==="library"&&songs.map(song=>{
           const inSL=setlist.includes(song.id);
           return(
@@ -548,7 +567,6 @@ export default function SetlistPage({ songs, setSongs, programs }) {
               <span className="song-row-key">{song.key}</span>
               <div className="song-row-actions" style={mobile?{opacity:1}:{}}>
                 <button className="row-btn" onClick={e=>{e.stopPropagation();setEditing(song);}}>✏️</button>
-                <button className={`row-btn ${inSL?"remove":"add"}`} onClick={e=>{e.stopPropagation();toggleSetlist(song.id);}}>{inSL?"✕":"+"}</button>
                 <button className="row-btn danger" onClick={e=>{e.stopPropagation();deleteSong(song.id);}}>🗑</button>
               </div>
             </div>
@@ -611,6 +629,8 @@ export default function SetlistPage({ songs, setSongs, programs }) {
   return (
     <>
       <style>{`
+        .setlist-section-divider { display: flex; align-items: center; gap: 8px; padding: 8px 10px 4px; font-size: .65rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-top: 6px; }
+        .setlist-section-divider::after { content: ""; flex: 1; height: 1px; background: #BFDBFE; }
         .song-section { margin-bottom: 20px; }
         .section-label { display: inline-block; font-weight: 800; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); background: var(--accent-light); padding: 3px 12px; border-radius: 20px; margin-bottom: 8px; border: 1px solid #BFDBFE; }
         .lyric-block,.chord-block,.drum-block { font-family: 'Courier Prime', monospace; line-height: 1.6; }
