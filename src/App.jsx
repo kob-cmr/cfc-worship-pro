@@ -464,8 +464,12 @@ function GlobalStyles() {
       .chord-line{color:var(--chord);font-weight:700;white-space:pre;margin-bottom:2px}
       .lyric-line{color:var(--lyric);white-space:pre;margin-bottom:2px}
 
-      /* Editor */
+      /* Editor overlay — full screen on mobile */
       .editor-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;backdrop-filter:blur(6px)}
+      @media(max-width:640px){
+        .editor-overlay{padding:0!important;align-items:stretch!important}
+        .editor-overlay > div{border-radius:0!important;max-height:100vh!important;height:100vh!important}
+      }
       .editor-card{background:white;border-radius:20px;padding:24px;width:100%;max-width:680px;max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
       .editor-title{font-size:1.15rem;font-weight:800;margin-bottom:18px;color:var(--accent);letter-spacing:-.01em}
       .editor-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
