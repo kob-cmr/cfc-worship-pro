@@ -24,62 +24,119 @@ function countOfType(sections, type) {
   return sections.filter(s => s.type === type).length;
 }
 
-// ── Transpose chord-only content (no lyric lines) ────────────────────────────
-function transposeChordOnly(content, semitones, useFlats, nashville, rootKey) {
-  return (content || "").split("\n").map(line => {
-    if (!line.trim()) return "";
-    if (isChordLine(line)) return transposeChordLine(line, semitones, useFlats, nashville, rootKey);
-    return null; // skip lyric lines
-  }).filter(l => l !== null).join("\n");
+// ── Special marker parsers ────────────────────────────────────────────────────
+const KEY_CHANGE_RE = /^\[KEY:\s*([A-Ga-g][b#]?m?)\s*\]$/i;
+const NOTE_RE = /^\[NOTE:\s*(.*)\]$/i;
+
+function parseKeyChange(line) {
+  const m = line.trim().match(KEY_CHANGE_RE);
+  return m ? m[1] : null;
+}
+function parseNote(line) {
+  const m = line.trim().match(NOTE_RE);
+  return m ? m[1] : null;
+}
+
+// ── Render a single chords block with key changes and notes ───────────────────
+function renderChordsBlock({ content, semitones, useFlats, nashville, baseRootKey, zoom, fsMode }) {
+  let currentRoot = baseRootKey; // tracks current key as we parse lines
+  const lines = (content || "").split("\n");
+  return lines.map((line, i) => {
+    const raw = line.trim();
+
+    // Empty line spacer
+    if (!raw) return <div key={i} style={{ height: "6px" }} />;
+
+    // [KEY: Eb] — key change marker
+    const newKey = parseKeyChange(raw);
+    if (newKey !== null) {
+      // Update current root for subsequent lines (side-effectful in render, use a closure trick)
+      const displayKey = transposeNote(newKey.replace("m",""), semitones, useFlats) + (newKey.includes("m") ? "m" : "");
+      currentRoot = transposeNote(newKey.replace("m",""), 0, false); // store original new key
+      return (
+        <div key={i} className={fsMode ? "fs-key-change" : "key-change-marker"}
+          style={zoom ? { fontSize: `${zoom * 0.78}rem` } : {}}>
+          🔑 Key change → {displayKey}
+        </div>
+      );
+    }
+
+    // [NOTE: ...] — performance note, never transposed
+    const noteText = parseNote(raw);
+    if (noteText !== null) {
+      return (
+        <div key={i} className={fsMode ? "fs-perf-note" : "perf-note-marker"}
+          style={zoom ? { fontSize: `${zoom * 0.8}rem` } : {}}>
+          📝 {noteText}
+        </div>
+      );
+    }
+
+    // Regular chord line — transpose with current root
+    const t = transposeChordLine(line, semitones, useFlats, nashville, currentRoot);
+    return (
+      <div key={i} className={fsMode ? "fs-chord-line" : "chord-line"}
+        style={zoom ? { fontSize: `${zoom}rem` } : {}}>
+        {t || line}
+      </div>
+    );
+  });
 }
 
 // ── Render sections for display ───────────────────────────────────────────────
 function renderSections({ sections, displayMode, semitones, useFlats, nashville, rootKey, zoom, fsMode }) {
   const visible = sections.filter(s => s.visible !== false);
-  return visible.map(sec => (
-    <div key={sec.id} className={fsMode ? "fs-song-section" : "song-section"}>
-      {/* Section label — bold, never transposed */}
-      <div className={fsMode ? "fs-section-label" : "section-label"}
-        style={zoom ? { fontSize: `${zoom * 0.82}rem` } : {}}>
-        {sec.label}
+  // Track current key across sections for key changes
+  let currentSectionRoot = rootKey;
+
+  return visible.map(sec => {
+    // Update root at section boundary — check if section starts with a key change
+    const firstLine = (sec.chords || "").split("\n").find(l => l.trim());
+    const sectionKeyChange = firstLine ? parseKeyChange(firstLine.trim()) : null;
+    if (sectionKeyChange) {
+      currentSectionRoot = transposeNote(sectionKeyChange.replace("m",""), semitones, useFlats);
+    }
+
+    return (
+      <div key={sec.id} className={fsMode ? "fs-song-section" : "song-section"}>
+        {/* Section label */}
+        <div className={fsMode ? "fs-section-label" : "section-label"}
+          style={zoom ? { fontSize: `${zoom * 0.82}rem` } : {}}>
+          {sec.label}
+        </div>
+
+        {displayMode === "lyrics" && (
+          <div className={fsMode ? "fs-lyric-block" : "lyric-block"}>
+            {(sec.lyrics || "—").split("\n").map((line, i) => {
+              const noteText = parseNote(line.trim());
+              if (noteText !== null) {
+                return <div key={i} className={fsMode?"fs-perf-note":"perf-note-marker"} style={zoom?{fontSize:`${zoom*.8}rem`}:{}}> 📝 {noteText}</div>;
+              }
+              return <div key={i} className={fsMode?"fs-lyric-line":"lyric-line"} style={zoom?{fontSize:`${zoom}rem`}:{}}>{line || "\u00A0"}</div>;
+            })}
+          </div>
+        )}
+
+        {displayMode === "chords" && (
+          <div className={fsMode ? "fs-chord-block" : "chord-block"}>
+            {renderChordsBlock({ content: sec.chords, semitones, useFlats, nashville, baseRootKey: currentSectionRoot, zoom, fsMode })}
+          </div>
+        )}
+
+        {displayMode === "drums" && (
+          <div className="drum-block">
+            {(sec.drums || "—").split("\n").map((line, i) => {
+              const noteText = parseNote(line.trim());
+              if (noteText !== null) {
+                return <div key={i} className={fsMode?"fs-perf-note":"perf-note-marker"} style={zoom?{fontSize:`${zoom*.8}rem`}:{}}> 📝 {noteText}</div>;
+              }
+              return <div key={i} className={fsMode?"fs-drum-line":"drum-line"} style={zoom?{fontSize:`${zoom}rem`}:{}}>{line || "\u00A0"}</div>;
+            })}
+          </div>
+        )}
       </div>
-
-      {/* Content */}
-      {displayMode === "lyrics" && (
-        <div className={fsMode ? "fs-lyric-block" : "lyric-block"}>
-          {(sec.lyrics || "—").split("\n").map((line, i) =>
-            <div key={i} className={fsMode ? "fs-lyric-line" : "lyric-line"}
-              style={zoom ? { fontSize: `${zoom}rem` } : {}}>{line || "\u00A0"}</div>
-          )}
-        </div>
-      )}
-
-      {displayMode === "chords" && (
-        <div className={fsMode ? "fs-chord-block" : "chord-block"}>
-          {(sec.chords || "").split("\n").map((line, i) => {
-            if (!line.trim()) return <div key={i} style={{ height: "6px" }} />;
-            // All non-empty lines in the chords field are chord lines — show everything
-            const t = transposeChordLine(line, semitones, useFlats, nashville, rootKey);
-            return (
-              <div key={i} className={fsMode ? "fs-chord-line" : "chord-line"}
-                style={zoom ? { fontSize: `${zoom}rem` } : {}}>
-                {t || line}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {displayMode === "drums" && (
-        <div className="drum-block">
-          {(sec.drums || "—").split("\n").map((line, i) =>
-            <div key={i} className={fsMode ? "fs-drum-line" : "drum-line"}
-              style={zoom ? { fontSize: `${zoom}rem` } : {}}>{line || "\u00A0"}</div>
-          )}
-        </div>
-      )}
-    </div>
-  ));
+    );
+  });
 }
 
 // ── Song Display ──────────────────────────────────────────────────────────────
@@ -153,11 +210,30 @@ function SectionEditor({ section, onUpdate, onDelete, onMove, isFirst, isLast, e
             ))}
           </div>
           {tab === "chords" && (
-            <textarea className="sec-textarea"
-              value={section.chords||""}
-              onChange={e => onUpdate({...section, chords:e.target.value})}
-              placeholder={"Chords only:\n\nG    D    Em   C\n1    5    6m   4"}
-              rows={6}/>
+            <>
+              <div className="sec-insert-bar">
+                <span className="sec-insert-label">Insert:</span>
+                <button className="sec-insert-btn key-btn" onClick={() => {
+                  const key = prompt("Enter new key (e.g. Eb, F#m, Am):");
+                  if (key && key.trim()) {
+                    const marker = `[KEY: ${key.trim()}]`;
+                    onUpdate({...section, chords: (section.chords||"") + (section.chords ? "\n" : "") + marker});
+                  }
+                }}>🔑 Key Change</button>
+                <button className="sec-insert-btn note-btn" onClick={() => {
+                  const note = prompt("Enter performance note (e.g. Mellow, Build up, Soft):");
+                  if (note && note.trim()) {
+                    const marker = `[NOTE: ${note.trim()}]`;
+                    onUpdate({...section, chords: (section.chords||"") + (section.chords ? "\n" : "") + marker});
+                  }
+                }}>📝 Note</button>
+              </div>
+              <textarea className="sec-textarea"
+                value={section.chords||""}
+                onChange={e => onUpdate({...section, chords:e.target.value})}
+                placeholder={"Chords only:\n\nG    D    Em   C\n1    5    6m   4\n\n[KEY: Eb]   ← key change\n[NOTE: Build up]   ← performance note"}
+                rows={7}/>
+            </>
           )}
           {tab === "lyrics" && (
             <textarea className="sec-textarea"
@@ -631,6 +707,19 @@ export default function SetlistPage({ songs, setSongs, programs }) {
       <style>{`
         .setlist-section-divider { display: flex; align-items: center; gap: 8px; padding: 8px 10px 4px; font-size: .65rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-top: 6px; }
         .setlist-section-divider::after { content: ""; flex: 1; height: 1px; background: #BFDBFE; }
+        /* Key change and note markers */
+        .key-change-marker { display:inline-flex; align-items:center; gap:6px; font-size:.75rem; font-weight:800; color:#D97706; background:#FFFBEB; border:1.5px solid #FDE68A; border-radius:20px; padding:3px 12px; margin:6px 0 4px; }
+        .perf-note-marker { display:inline-flex; align-items:center; gap:6px; font-size:.75rem; font-weight:600; color:#6B7280; background:#F9FAFB; border:1.5px solid #E5E7EB; border-radius:8px; padding:3px 12px; margin:4px 0; font-style:italic; }
+        .fs-key-change { display:inline-flex; align-items:center; gap:6px; font-weight:800; color:#FCD34D; background:rgba(252,211,77,.12); border:1.5px solid rgba(252,211,77,.3); border-radius:20px; padding:4px 14px; margin:8px 0 6px; }
+        .fs-perf-note { display:inline-flex; align-items:center; gap:6px; font-weight:600; color:#94A3B8; background:rgba(148,163,184,.08); border:1px solid rgba(148,163,184,.2); border-radius:8px; padding:3px 12px; margin:4px 0; font-style:italic; }
+        /* Insert bar in section editor */
+        .sec-insert-bar { display:flex; align-items:center; gap:6px; padding:6px 12px; background:var(--panel); border-bottom:1px solid var(--border); flex-wrap:wrap; }
+        .sec-insert-label { font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+        .sec-insert-btn { padding:4px 12px; border-radius:20px; border:1.5px solid; font-size:.7rem; font-weight:700; cursor:pointer; transition:all .15s; }
+        .sec-insert-btn.key-btn { border-color:#FDE68A; color:#D97706; background:#FFFBEB; }
+        .sec-insert-btn.key-btn:hover { background:#D97706; color:white; border-color:#D97706; }
+        .sec-insert-btn.note-btn { border-color:#E5E7EB; color:#6B7280; background:#F9FAFB; }
+        .sec-insert-btn.note-btn:hover { background:#6B7280; color:white; border-color:#6B7280; }
         .song-section { margin-bottom: 20px; }
         .section-label { display: inline-block; font-weight: 800; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); background: var(--accent-light); padding: 3px 12px; border-radius: 20px; margin-bottom: 8px; border: 1px solid #BFDBFE; }
         .lyric-block,.chord-block,.drum-block { font-family: 'Courier Prime', monospace; line-height: 1.6; }
