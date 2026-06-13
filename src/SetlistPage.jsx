@@ -37,6 +37,14 @@ function parseNote(line) {
   return m ? m[1] : null;
 }
 
+function parseSectionMarker(line) {
+  const m = line.trim().match(/^\[([^\]]+)\]$/);
+  if (!m) return null;
+  const value = m[1].trim();
+  if (/^(KEY|NOTE):/i.test(value)) return null;
+  return value;
+}
+
 // ── Render a single chords block with key changes and notes ───────────────────
 function renderChordsBlock({ content, semitones, useFlats, nashville, baseRootKey, zoom, fsMode }) {
   let currentRoot = baseRootKey; // tracks current key as we parse lines
@@ -57,6 +65,16 @@ function renderChordsBlock({ content, semitones, useFlats, nashville, baseRootKe
         <div key={i} className={fsMode ? "fs-key-change" : "key-change-marker"}
           style={zoom ? { fontSize: `${zoom * 0.78}rem` } : {}}>
           🔑 Key change → {displayKey}
+        </div>
+      );
+    }
+
+    const sectionMarker = parseSectionMarker(raw);
+    if (sectionMarker !== null) {
+      return (
+        <div key={i} className={fsMode ? "fs-section-marker" : "section-marker"}
+          style={zoom ? { fontSize: `${zoom}rem` } : {}}>
+          {sectionMarker}
         </div>
       );
     }
@@ -108,9 +126,9 @@ function renderSections({ sections, displayMode, semitones, useFlats, nashville,
         {displayMode === "lyrics" && (
           <div className={fsMode ? "fs-lyric-block" : "lyric-block"}>
             {(sec.lyrics || "—").split("\n").map((line, i) => {
-              const noteText = parseNote(line.trim());
-              if (noteText !== null) {
-                return <div key={i} className={fsMode?"fs-perf-note":"perf-note-marker"} style={zoom?{fontSize:`${zoom*.8}rem`}:{}}> 📝 {noteText}</div>;
+              const sectionMarker = parseSectionMarker(line.trim());
+              if (sectionMarker !== null) {
+                return <div key={i} className={fsMode?"fs-section-marker":"section-marker"} style={zoom?{fontSize:`${zoom}rem`}:{}}>{sectionMarker}</div>;
               }
               return <div key={i} className={fsMode?"fs-lyric-line":"lyric-line"} style={zoom?{fontSize:`${zoom}rem`}:{}}>{line || "\u00A0"}</div>;
             })}
@@ -126,6 +144,10 @@ function renderSections({ sections, displayMode, semitones, useFlats, nashville,
         {displayMode === "drums" && (
           <div className="drum-block">
             {(sec.drums || "—").split("\n").map((line, i) => {
+              const sectionMarker = parseSectionMarker(line.trim());
+              if (sectionMarker !== null) {
+                return <div key={i} className={fsMode?"fs-section-marker":"section-marker"} style={zoom?{fontSize:`${zoom}rem`}:{}}>{sectionMarker}</div>;
+              }
               const noteText = parseNote(line.trim());
               if (noteText !== null) {
                 return <div key={i} className={fsMode?"fs-perf-note":"perf-note-marker"} style={zoom?{fontSize:`${zoom*.8}rem`}:{}}> 📝 {noteText}</div>;
@@ -184,8 +206,48 @@ function SectionEditor({ section, onUpdate, onDelete, onMove, isFirst, isLast, e
     { id:"lyrics", label:"🎤 Lyrics" },
     { id:"drums",  label:"🥁 Drums" },
   ];
+  const chordsRef = useRef(null);
+  const lyricsRef = useRef(null);
+  const drumsRef = useRef(null);
+
+  const insertAtCursor = (field, text) => {
+    const ref = field === 'chords' ? chordsRef : field === 'lyrics' ? lyricsRef : drumsRef;
+    const current = section[field] || "";
+    const el = ref.current;
+    if (!el || typeof el.selectionStart !== 'number') {
+      // fallback: append on new line
+      const appended = current + (current ? "\n" : "") + text;
+      onUpdate({ ...section, [field]: appended });
+      return;
+    }
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const before = current.slice(0, start);
+    const after = current.slice(end);
+    const next = before + text + after;
+    onUpdate({ ...section, [field]: next });
+    // restore focus and caret after DOM update
+    setTimeout(() => {
+      el.focus();
+      const pos = start + text.length;
+      el.selectionStart = el.selectionEnd = pos;
+    }, 0);
+  };
+
+  const handleInsert = (kind) => {
+    const field = tab; // insert into currently active tab
+    if (kind === 'key') {
+      const key = prompt("Enter new key (e.g. Eb, F#m, Am):");
+      if (!key) return;
+      insertAtCursor(field, `[KEY: ${key.trim()}]`);
+    } else if (kind === 'note') {
+      const note = prompt("Enter performance note (e.g. Build up):");
+      if (!note) return;
+      insertAtCursor(field, `[NOTE: ${note.trim()}]`);
+    }
+  };
   return (
-    <div className={`sec-editor-card ${expanded?"sec-editor-expanded":""}`}>
+    <div id={`sec-${section.id}`} className={`sec-editor-card ${expanded?"sec-editor-expanded":""}`}>
       <div className="sec-editor-header">
         <button className="sec-editor-label-btn" onClick={onToggle}>
           <span className="sec-editor-label">{section.label}</span>
@@ -204,6 +266,11 @@ function SectionEditor({ section, onUpdate, onDelete, onMove, isFirst, isLast, e
       </div>
       {expanded && (
         <>
+          <div className="sec-insert-bar">
+            <span className="sec-insert-label">Insert:</span>
+            <button className="sec-insert-btn key-btn" onClick={() => handleInsert('key')}>🔑 Key Change</button>
+            <button className="sec-insert-btn note-btn" onClick={() => handleInsert('note')}>📝 Note</button>
+          </div>
           <div className="sec-editor-tabs">
             {tabs.map(t => (
               <button key={t.id} className={`sec-tab-btn ${tab===t.id?"active":""}`} onClick={() => setTab(t.id)}>
@@ -213,24 +280,8 @@ function SectionEditor({ section, onUpdate, onDelete, onMove, isFirst, isLast, e
           </div>
           {tab === "chords" && (
             <>
-              <div className="sec-insert-bar">
-                <span className="sec-insert-label">Insert:</span>
-                <button className="sec-insert-btn key-btn" onClick={() => {
-                  const key = prompt("Enter new key (e.g. Eb, F#m, Am):");
-                  if (key && key.trim()) {
-                    const marker = `[KEY: ${key.trim()}]`;
-                    onUpdate({...section, chords: (section.chords||"") + (section.chords ? "\n" : "") + marker});
-                  }
-                }}>🔑 Key Change</button>
-                <button className="sec-insert-btn note-btn" onClick={() => {
-                  const note = prompt("Enter performance note (e.g. Mellow, Build up, Soft):");
-                  if (note && note.trim()) {
-                    const marker = `[NOTE: ${note.trim()}]`;
-                    onUpdate({...section, chords: (section.chords||"") + (section.chords ? "\n" : "") + marker});
-                  }
-                }}>📝 Note</button>
-              </div>
               <textarea className="sec-textarea"
+                ref={chordsRef}
                 value={section.chords||""}
                 onChange={e => onUpdate({...section, chords:e.target.value})}
                 placeholder={"Chords only:\n\nG    D    Em   C\n1    5    6m   4\n\n[KEY: Eb]   ← key change\n[NOTE: Build up]   ← performance note"}
@@ -239,6 +290,7 @@ function SectionEditor({ section, onUpdate, onDelete, onMove, isFirst, isLast, e
           )}
           {tab === "lyrics" && (
             <textarea className="sec-textarea"
+              ref={lyricsRef}
               value={section.lyrics||""}
               onChange={e => onUpdate({...section, lyrics:e.target.value})}
               placeholder={"Lyrics:\n\nAmazing grace how sweet the sound\nThat saved a wretch like me"}
@@ -246,6 +298,7 @@ function SectionEditor({ section, onUpdate, onDelete, onMove, isFirst, isLast, e
           )}
           {tab === "drums" && (
             <textarea className="sec-textarea"
+              ref={drumsRef}
               value={section.drums||""}
               onChange={e => onUpdate({...section, drums:e.target.value})}
               placeholder={"Drum notes:\n\nHi-hat 8ths, kick on 1 & 3"}
@@ -259,110 +312,102 @@ function SectionEditor({ section, onUpdate, onDelete, onMove, isFirst, isLast, e
 
 // ── Song Editor ───────────────────────────────────────────────────────────────
 function SongEditor({ song, onSave, onCancel }) {
-  const [form, setForm] = useState({
-    lyrics:"", chords:"", drums:"", sections:[], bpm:"", tempoSig:"4/4", ...song
+  const [form, setForm] = useState(() => {
+    const base = { lyrics: "", chords: "", drums: "", sections: [], bpm: "", tempoSig: "4/4", ...song };
+    const flatten = (field) => {
+      if (base[field] && base[field].toString().trim()) return base[field];
+      if (!song.sections || !song.sections.length) return "";
+      return song.sections.map(sec => {
+        const text = sec[field] ? `\n${sec[field]}` : "";
+        return sec.label ? `[${sec.label}]${text}` : sec[field] || "";
+      }).join("\n\n");
+    };
+    return {
+      ...base,
+      lyrics: flatten("lyrics"),
+      chords: flatten("chords"),
+      drums: flatten("drums"),
+    };
   });
-  const [expandedId, setExpandedId] = useState(null);
-  const [detailsOpen, setDetailsOpen] = useState(true); // collapsible top section
-  const [selectedLyrics, setSelectedLyrics] = useState("");
-  const [newSectionType, setNewSectionType] = useState("Verse");
-  const [newSectionNumber, setNewSectionNumber] = useState("");
-  const lyricsRef = useRef(null);
+  const [detailsOpen, setDetailsOpen] = useState(true);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const [expandedId, setExpandedId] = useState(null);
   const listRef = useRef(null);
 
   const addSection = (type) => {
-    const existing = countOfType(form.sections, type);
+    const existing = countOfType(form.sections || [], type);
     const num = existing > 0 ? existing + 1 : (["Intro","Outro","Bridge","Tag","Interlude"].includes(type) ? null : 1);
     const sec = makeSection(type, num);
-    set("sections", [...form.sections, sec]);
+    set("sections", [...(form.sections || []), sec]);
     setExpandedId(sec.id);
     setTimeout(() => {
       if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-    }, 60);
+    }, 80);
   };
 
-  const updateSection = (updated) => set("sections", form.sections.map(s => s.id === updated.id ? updated : s));
-  const deleteSection = (id) => { set("sections", form.sections.filter(s => s.id !== id)); if (expandedId===id) setExpandedId(null); };
-  const moveSection = (idx, dir) => { const arr=[...form.sections],to=idx+dir; if(to<0||to>=arr.length)return; [arr[idx],arr[to]]=[arr[to],arr[idx]]; set("sections",arr); };
-  const toggleExpand = (id) => setExpandedId(prev => prev===id ? null : id);
-
-  const handleLyricsSelect = () => {
-    const textarea = lyricsRef.current;
-    if (!textarea) return;
-    const text = textarea.value.slice(textarea.selectionStart, textarea.selectionEnd).trim();
-    setSelectedLyrics(text);
-  };
-
-  const addSectionFromSelection = () => {
-    const selected = selectedLyrics.trim();
-    if (!selected) {
-      window.alert("Select lyrics from the full lyrics box before creating a section.");
-      return;
-    }
-    const existing = countOfType(form.sections, newSectionType);
-    const number = newSectionNumber ? Number(newSectionNumber) : (['Intro','Outro','Bridge','Tag','Interlude'].includes(newSectionType) ? null : existing + 1);
-    const sec = makeSection(newSectionType, number);
-    sec.label = number ? `${newSectionType} ${number}` : newSectionType;
-    sec.lyrics = selected;
-    set("sections", [...form.sections, sec]);
-    setExpandedId(sec.id);
-    setSelectedLyrics("");
-    setNewSectionNumber("");
+  const updateSection = (updated) => set("sections", (form.sections || []).map(s => s.id === updated.id ? updated : s));
+  const deleteSection = (id) => { set("sections", (form.sections || []).filter(s => s.id !== id)); if (expandedId===id) setExpandedId(null); };
+  const moveSection = (idx, dir) => { const arr=[...(form.sections||[])],to=idx+dir; if(to<0||to>=arr.length)return; [arr[idx],arr[to]]=[arr[to],arr[idx]]; set("sections",arr); };
+  const toggleExpand = (id) => {
+    setExpandedId(prev => prev===id ? null : id);
     setTimeout(() => {
-      if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-    }, 60);
+      const el = document.getElementById(`sec-${id}`);
+      if (el && listRef.current) {
+        const container = listRef.current;
+        const elTop = el.offsetTop;
+        const elCenter = elTop - (container.clientHeight / 2) + (el.clientHeight / 2);
+        container.scrollTo({ top: elCenter, behavior: 'smooth' });
+      }
+    }, 120);
   };
 
   return (
-    <div className="editor-overlay" style={{alignItems:"stretch",padding:0}}>
+    <div className="editor-overlay" style={{ alignItems: "stretch", padding: 0 }}>
       <div style={{
-        background:"white", display:"flex", flexDirection:"column",
-        width:"100%", maxWidth:680, margin:"0 auto",
-        height:"100%", maxHeight:"100vh",
-        borderRadius:0, overflow:"hidden",
+        background: "white", display: "flex", flexDirection: "column",
+        width: "100%", maxWidth: 680, margin: "0 auto",
+        height: "100%", maxHeight: "100vh",
+        borderRadius: 0, overflow: "hidden",
       }}>
-        {/* ── Fixed top bar: title + cancel ── */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 18px 10px",borderBottom:"1px solid var(--border)",flexShrink:0,background:"white"}}>
-          <h2 className="editor-title" style={{margin:0,fontSize:"1rem"}}>{song.id ? "Edit Song" : "New Song"}</h2>
-          <button className="btn-ghost" style={{padding:"6px 12px",fontSize:".75rem"}} onClick={onCancel}>✕</button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px 10px", borderBottom: "1px solid var(--border)", flexShrink: 0, background: "white" }}>
+          <h2 className="editor-title" style={{ margin: 0, fontSize: "1rem" }}>{song.id ? "Edit Song" : "New Song"}</h2>
+          <button className="btn-ghost" style={{ padding: "6px 12px", fontSize: ".75rem" }} onClick={onCancel}>✕</button>
         </div>
 
-        {/* ── Collapsible details section ── */}
-        <div style={{flexShrink:0,borderBottom:"1px solid var(--border)",background:"white"}}>
+        <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", background: "white" }}>
           <button
-            onClick={() => setDetailsOpen(o=>!o)}
-            style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 18px",border:"none",background:"transparent",cursor:"pointer",fontSize:".75rem",fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em"}}>
+            onClick={() => setDetailsOpen(o => !o)}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 18px", border: "none", background: "transparent", cursor: "pointer", fontSize: ".75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em" }}>
             <span>Song Details</span>
             <span>{detailsOpen ? "▲ Hide" : "▼ Show"}</span>
           </button>
           {detailsOpen && (
-            <div style={{padding:"0 18px 12px"}}>
-              <div className="editor-row" style={{marginBottom:0}}>
+            <div style={{ padding: "0 18px 12px" }}>
+              <div className="editor-row" style={{ marginBottom: 0 }}>
                 <div className="editor-field">
                   <label>Title</label>
-                  <input value={form.title} onChange={e=>set("title",e.target.value)} placeholder="Song title"/>
+                  <input value={form.title} onChange={e => set("title", e.target.value)} placeholder="Song title" />
                 </div>
                 <div className="editor-field">
                   <label>Artist</label>
-                  <input value={form.artist} onChange={e=>set("artist",e.target.value)} placeholder="Artist name"/>
+                  <input value={form.artist} onChange={e => set("artist", e.target.value)} placeholder="Artist name" />
                 </div>
               </div>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                <div className="editor-field" style={{flex:"0 0 100px",marginBottom:0}}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <div className="editor-field" style={{ flex: "0 0 100px", marginBottom: 0 }}>
                   <label>Key</label>
-                  <select value={form.key} onChange={e=>set("key",e.target.value)}>
-                    {KEYS.map(k=><option key={k}>{k}</option>)}
+                  <select value={form.key} onChange={e => set("key", e.target.value)}>
+                    {KEYS.map(k => <option key={k}>{k}</option>)}
                   </select>
                 </div>
-                <div className="editor-field" style={{flex:"0 0 80px",marginBottom:0}}>
+                <div className="editor-field" style={{ flex: "0 0 80px", marginBottom: 0 }}>
                   <label>BPM</label>
-                  <input type="number" min="40" max="300" value={form.bpm||""} onChange={e=>set("bpm",e.target.value)} placeholder="120"/>
+                  <input type="number" min="40" max="300" value={form.bpm || ""} onChange={e => set("bpm", e.target.value)} placeholder="120" />
                 </div>
-                <div className="editor-field" style={{flex:"0 0 90px",marginBottom:0}}>
+                <div className="editor-field" style={{ flex: "0 0 90px", marginBottom: 0 }}>
                   <label>Time Sig</label>
-                  <select value={form.tempoSig||"4/4"} onChange={e=>set("tempoSig",e.target.value)}>
-                    {TEMPO_SIGS.map(t=><option key={t}>{t}</option>)}
+                  <select value={form.tempoSig || "4/4"} onChange={e => set("tempoSig", e.target.value)}>
+                    {TEMPO_SIGS.map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
               </div>
@@ -370,60 +415,48 @@ function SongEditor({ song, onSave, onCancel }) {
           )}
         </div>
 
-        {/* ── Fixed: full lyrics source + section add buttons + arrangement ── */}
-        <div style={{flexShrink:0,borderBottom:"1px solid var(--border)",padding:"10px 18px",background:"white"}}>
-          <div style={{marginBottom:12}}>
-            <label style={{fontSize:".62rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:6}}>Full Lyrics</label>
-            <textarea ref={lyricsRef}
-              className="sec-textarea"
-              value={form.lyrics||""}
-              onChange={e => { set("lyrics", e.target.value); }}
-              onSelect={handleLyricsSelect}
-              onMouseUp={handleLyricsSelect}
-              placeholder={"Paste the entire song lyrics here. Then select each verse, chorus, intro, etc. and create a section from the selection."}
-              rows={10}
+        <div style={{ flexShrink: 0, borderBottom: "1px solid var(--border)", padding: "10px 18px", background: "white" }}>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: ".62rem", fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)", display: "block", marginBottom: 6 }}>Full Chords</label>
+            <textarea className="sec-textarea"
+              value={form.chords || ""}
+              onChange={e => set("chords", e.target.value)}
+              placeholder={"Paste the full chord chart here. Use [Intro], [Verse], [Chorus] markers to keep the arrangement clear."}
+              rows={8}
             />
-            <div className="selection-helper">
-              <div>
-                {selectedLyrics
-                  ? `Selected lyrics preview: ${selectedLyrics.split("\n").length} line${selectedLyrics.split("\n").length===1?"":"s"}`
-                  : "Select a portion of the lyrics above to create a section."}
-              </div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:8,alignItems:"center"}}>
-                <select value={newSectionType} onChange={e=>setNewSectionType(e.target.value)}
-                  style={{padding:"8px 10px",borderRadius:10,border:"1.5px solid var(--border)",background:"white",minWidth:120}}>
-                  {SECTION_TYPES.map(type=><option key={type} value={type}>{type}</option>)}
-                </select>
-                <input type="number" min="1" value={newSectionNumber}
-                  onChange={e=>setNewSectionNumber(e.target.value)}
-                  placeholder="Number (optional)"
-                  style={{padding:"8px 10px",borderRadius:10,border:"1.5px solid var(--border)",width:120}} />
-                <button className="btn-ghost" disabled={!selectedLyrics.trim()} onClick={addSectionFromSelection}
-                  style={{padding:"8px 14px",fontSize:"0.8rem"}}>
-                  + Create section from selection
-                </button>
-              </div>
-            </div>
+            <div style={{ fontSize: ".78rem", color: "var(--muted)", marginTop: 6 }}>Chord markers like [Intro] display bold in the full screen perform view.</div>
           </div>
 
-          <div style={{marginBottom:form.sections.length>0?8:0}}>
-            <label style={{fontSize:".62rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:6}}>Quick Add Section</label>
+          <div>
+            <label style={{ fontSize: ".62rem", fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)", display: "block", marginBottom: 6 }}>Full Drum Notes</label>
+            <textarea className="sec-textarea"
+              value={form.drums || ""}
+              onChange={e => set("drums", e.target.value)}
+              placeholder={"Paste the full drum chart here. Use section markers like [Verse] or [Chorus] for quick visual cues."}
+              rows={6}
+            />
+            <div style={{ fontSize: ".78rem", color: "var(--muted)", marginTop: 6 }}>Use bracketed section labels to make drum arrangements easier to read on stage.</div>
+          </div>
+        </div>
+
+        {/* Quick add sections + arrangement pills */}
+        <div style={{ flexShrink: 0, padding: "10px 18px", background: "white", borderTop: "1px solid var(--border)" }}>
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontSize: ".62rem", fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)", display: "block", marginBottom: 6 }}>Quick Add Section</label>
             <div className="section-btn-row">
-              {SECTION_TYPES.map(type=>(
-                <button key={type} className="section-add-btn" onClick={()=>addSection(type)}>+ {type}</button>
+              {SECTION_TYPES.map(type => (
+                <button key={type} className="section-add-btn" onClick={() => addSection(type)}>+ {type}</button>
               ))}
             </div>
           </div>
-          {form.sections.length > 0 && (
-            <div>
-              <label style={{fontSize:".62rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:5}}>
-                Arrangement <span style={{fontWeight:400,textTransform:"none",letterSpacing:0}}>— tap to show/hide</span>
-              </label>
+          {form.sections && form.sections.length > 0 && (
+            <div style={{ marginBottom: 6 }}>
+              <label style={{ fontSize: ".62rem", fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)", display: "block", marginBottom: 5 }}>Arrangement <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— tap to show/hide</span></label>
               <div className="arrangement-pills">
-                {form.sections.map(sec=>(
+                {form.sections.map(sec => (
                   <button key={sec.id}
-                    className={`arr-pill ${sec.visible===false?"arr-pill-hidden":""}`}
-                    onClick={()=>updateSection({...sec,visible:sec.visible===false?true:false})}>
+                    className={`arr-pill ${sec.visible === false ? "arr-pill-hidden" : ""}`}
+                    onClick={() => updateSection({ ...sec, visible: sec.visible === false ? true : false })}>
                     {sec.label}
                   </button>
                 ))}
@@ -432,35 +465,33 @@ function SongEditor({ song, onSave, onCancel }) {
           )}
         </div>
 
-        {/* ── Scrollable sections list ── */}
-        <div ref={listRef} style={{flex:1,overflowY:"auto",padding:"10px 18px",display:"flex",flexDirection:"column",gap:8,background:"var(--bg)"}}>
-          {form.sections.length===0 && (
-            <div style={{padding:"20px",textAlign:"center",color:"var(--muted)",fontSize:".82rem",background:"white",borderRadius:"10px",border:"1.5px dashed var(--border)"}}>
+        {/* Scrollable sections list */}
+        <div ref={listRef} style={{ flex: 1, overflowY: "auto", padding: "10px 18px", display: "flex", flexDirection: "column", gap: 8, background: "var(--bg)" }}>
+          {(!form.sections || form.sections.length === 0) && (
+            <div style={{ padding: "20px", textAlign: "center", color: "var(--muted)", fontSize: ".82rem", background: "white", borderRadius: "10px", border: "1.5px dashed var(--border)" }}>
               Tap the section buttons above to build your song structure
             </div>
           )}
-          {form.sections.map((sec,i)=>(
+          {(form.sections || []).map((sec, i) => (
             <SectionEditor key={sec.id} section={sec}
-              expanded={expandedId===sec.id}
-              onToggle={()=>toggleExpand(sec.id)}
+              expanded={expandedId === sec.id}
+              onToggle={() => toggleExpand(sec.id)}
               onUpdate={updateSection}
               onDelete={deleteSection}
-              onMove={(dir)=>moveSection(i,dir)}
-              isFirst={i===0} isLast={i===form.sections.length-1}/>
+              onMove={(dir) => moveSection(i, dir)}
+              isFirst={i === 0} isLast={i === (form.sections || []).length - 1} />
           ))}
         </div>
 
-        {/* ── Fixed save button ── */}
-        <div style={{padding:"12px 18px",borderTop:"1px solid var(--border)",background:"white",flexShrink:0}}>
-          <button className="btn-full" onClick={()=>{
-            const rootKey=form.key.replace("m","");
-            const converted={
+        {/* Save button */}
+        <div style={{ padding: "12px 18px", borderTop: "1px solid var(--border)", background: "white", flexShrink: 0 }}>
+          <button className="btn-full" onClick={() => {
+            const rootKey = form.key.replace("m", "");
+            const converted = {
               ...form,
-              sections:(form.sections||[]).map(sec=>({
+              sections: (form.sections || []).map(sec => ({
                 ...sec,
-                chords:(sec.chords||"").split("\n").map(line=>
-                  isNashvilleLine(line)?nashvilleLineToStandard(line,rootKey):line
-                ).join("\n")
+                chords: (sec.chords || "").split("\n").map(line => isNashvilleLine(line) ? nashvilleLineToStandard(line, rootKey) : line).join("\n")
               }))
             };
             onSave(converted);
@@ -750,6 +781,8 @@ export default function SetlistPage({ songs, setSongs, programs }) {
         /* Key change and note markers */
         .key-change-marker { display:inline-flex; align-items:center; gap:6px; font-size:.75rem; font-weight:800; color:#D97706; background:#FFFBEB; border:1.5px solid #FDE68A; border-radius:20px; padding:3px 12px; margin:6px 0 4px; }
         .perf-note-marker { display:inline-flex; align-items:center; gap:6px; font-size:.75rem; font-weight:600; color:#6B7280; background:#F9FAFB; border:1.5px solid #E5E7EB; border-radius:8px; padding:3px 12px; margin:4px 0; font-style:italic; }
+        .section-marker { display: inline-block; font-weight: 800; font-size: .82rem; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); background: linear-gradient(90deg, rgba(59,130,246,0.08), rgba(93,185,255,0.06)); padding: 6px 14px; border-radius: 22px; margin: 8px 0; border: 1px solid rgba(59,130,246,0.18); }
+        .fs-section-marker { display: block; width: 100%; text-align: center; font-weight: 900; font-size: 1.05rem; letter-spacing: .12em; text-transform: uppercase; color: #075985; background: linear-gradient(180deg, rgba(14,165,233,0.12), rgba(99,102,241,0.06)); border: 1px solid rgba(14,165,233,0.2); padding: 10px 18px; border-radius: 18px; margin: 10px 0 14px; box-shadow: 0 6px 18px rgba(14,165,233,0.06); }
         .fs-key-change { display:inline-flex; align-items:center; gap:6px; font-weight:800; color:#FCD34D; background:rgba(252,211,77,.12); border:1.5px solid rgba(252,211,77,.3); border-radius:20px; padding:4px 14px; margin:8px 0 6px; }
         .fs-perf-note { display:inline-flex; align-items:center; gap:6px; font-weight:600; color:#94A3B8; background:rgba(148,163,184,.08); border:1px solid rgba(148,163,184,.2); border-radius:8px; padding:3px 12px; margin:4px 0; font-style:italic; }
         /* Insert bar in section editor */
