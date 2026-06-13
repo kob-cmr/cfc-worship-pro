@@ -144,7 +144,9 @@ function SongDisplay({ song, useFlats, nashville, displayMode }) {
   const semitones = song.semitones || 0;
   const rootKey = transposeNote(song.key.replace("m",""), semitones, useFlats);
   const effectiveKey = rootKey + (song.key.includes("m") && !song.key.includes("maj") ? "m" : "");
-  const sections = song.sections || [];
+  const sections = (song.sections && song.sections.length > 0)
+    ? song.sections
+    : (song.lyrics ? [{ id:"whole-lyrics", type:"Lyrics", label:"Full Lyrics", visible:true, lyrics:song.lyrics, chords:"", drums:"" }] : []);
 
   return (
     <div className="song-display">
@@ -262,6 +264,10 @@ function SongEditor({ song, onSave, onCancel }) {
   });
   const [expandedId, setExpandedId] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(true); // collapsible top section
+  const [selectedLyrics, setSelectedLyrics] = useState("");
+  const [newSectionType, setNewSectionType] = useState("Verse");
+  const [newSectionNumber, setNewSectionNumber] = useState("");
+  const lyricsRef = useRef(null);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const listRef = useRef(null);
 
@@ -280,6 +286,33 @@ function SongEditor({ song, onSave, onCancel }) {
   const deleteSection = (id) => { set("sections", form.sections.filter(s => s.id !== id)); if (expandedId===id) setExpandedId(null); };
   const moveSection = (idx, dir) => { const arr=[...form.sections],to=idx+dir; if(to<0||to>=arr.length)return; [arr[idx],arr[to]]=[arr[to],arr[idx]]; set("sections",arr); };
   const toggleExpand = (id) => setExpandedId(prev => prev===id ? null : id);
+
+  const handleLyricsSelect = () => {
+    const textarea = lyricsRef.current;
+    if (!textarea) return;
+    const text = textarea.value.slice(textarea.selectionStart, textarea.selectionEnd).trim();
+    setSelectedLyrics(text);
+  };
+
+  const addSectionFromSelection = () => {
+    const selected = selectedLyrics.trim();
+    if (!selected) {
+      window.alert("Select lyrics from the full lyrics box before creating a section.");
+      return;
+    }
+    const existing = countOfType(form.sections, newSectionType);
+    const number = newSectionNumber ? Number(newSectionNumber) : (['Intro','Outro','Bridge','Tag','Interlude'].includes(newSectionType) ? null : existing + 1);
+    const sec = makeSection(newSectionType, number);
+    sec.label = number ? `${newSectionType} ${number}` : newSectionType;
+    sec.lyrics = selected;
+    set("sections", [...form.sections, sec]);
+    setExpandedId(sec.id);
+    setSelectedLyrics("");
+    setNewSectionNumber("");
+    setTimeout(() => {
+      if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+    }, 60);
+  };
 
   return (
     <div className="editor-overlay" style={{alignItems:"stretch",padding:0}}>
@@ -337,10 +370,44 @@ function SongEditor({ song, onSave, onCancel }) {
           )}
         </div>
 
-        {/* ── Fixed: section add buttons + arrangement ── */}
+        {/* ── Fixed: full lyrics source + section add buttons + arrangement ── */}
         <div style={{flexShrink:0,borderBottom:"1px solid var(--border)",padding:"10px 18px",background:"white"}}>
+          <div style={{marginBottom:12}}>
+            <label style={{fontSize:".62rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:6}}>Full Lyrics</label>
+            <textarea ref={lyricsRef}
+              className="sec-textarea"
+              value={form.lyrics||""}
+              onChange={e => { set("lyrics", e.target.value); }}
+              onSelect={handleLyricsSelect}
+              onMouseUp={handleLyricsSelect}
+              placeholder={"Paste the entire song lyrics here. Then select each verse, chorus, intro, etc. and create a section from the selection."}
+              rows={10}
+            />
+            <div className="selection-helper">
+              <div>
+                {selectedLyrics
+                  ? `Selected lyrics preview: ${selectedLyrics.split("\n").length} line${selectedLyrics.split("\n").length===1?"":"s"}`
+                  : "Select a portion of the lyrics above to create a section."}
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:8,alignItems:"center"}}>
+                <select value={newSectionType} onChange={e=>setNewSectionType(e.target.value)}
+                  style={{padding:"8px 10px",borderRadius:10,border:"1.5px solid var(--border)",background:"white",minWidth:120}}>
+                  {SECTION_TYPES.map(type=><option key={type} value={type}>{type}</option>)}
+                </select>
+                <input type="number" min="1" value={newSectionNumber}
+                  onChange={e=>setNewSectionNumber(e.target.value)}
+                  placeholder="Number (optional)"
+                  style={{padding:"8px 10px",borderRadius:10,border:"1.5px solid var(--border)",width:120}} />
+                <button className="btn-ghost" disabled={!selectedLyrics.trim()} onClick={addSectionFromSelection}
+                  style={{padding:"8px 14px",fontSize:"0.8rem"}}>
+                  + Create section from selection
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div style={{marginBottom:form.sections.length>0?8:0}}>
-            <label style={{fontSize:".62rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:6}}>Add Section</label>
+            <label style={{fontSize:".62rem",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",display:"block",marginBottom:6}}>Quick Add Section</label>
             <div className="section-btn-row">
               {SECTION_TYPES.map(type=>(
                 <button key={type} className="section-add-btn" onClick={()=>addSection(type)}>+ {type}</button>
@@ -536,8 +603,6 @@ export default function SetlistPage({ songs, setSongs, programs }) {
   const setSetlist = () => {};
 
   const [activeSong, setActiveSong] = useState(setlist[0]||null);
-  const [useFlats, setUseFlats] = useState(false);
-  const [nashville, setNashville] = useState(false);
   const [displayMode, setDisplayMode] = useState("chords");
   const [editing, setEditing] = useState(null);
   const [sideView, setSideView] = useState("setlist");
@@ -558,16 +623,6 @@ export default function SetlistPage({ songs, setSongs, programs }) {
     setFsIndex(idx);
     if (idx>=0&&idx<setlistSongs.length) setActiveSong(setlistSongs[idx].id);
   };
-
-  const adjustSongSemitone = (d) => {
-    if (!activeSong) return;
-    setSongs(ss=>ss.map(s=>s.id===activeSong?{...s,semitones:(s.semitones||0)+d}:s));
-  };
-  const resetSongSemitone = () => {
-    if (!activeSong) return;
-    setSongs(ss=>ss.map(s=>s.id===activeSong?{...s,semitones:0}:s));
-  };
-  const currentSemitones = currentSong?.semitones||0;
   const setCurrentIndexInSetlist = (idx) => {
     if (idx>=0&&idx<setlistSongs.length) setActiveSong(setlistSongs[idx].id);
   };
@@ -673,23 +728,8 @@ export default function SetlistPage({ songs, setSongs, programs }) {
           </select>
         </div>
       )}
-      <div className="sl-ctrl-row">
-        <span className="transpose-label">Transpose</span>
-        <button className="btn-icon" onClick={()=>adjustSongSemitone(-1)}>♭</button>
-        <span className="semitone-display">{currentSemitones>0?`+${currentSemitones}`:currentSemitones}</span>
-        <button className="btn-icon" onClick={()=>adjustSongSemitone(1)}>♯</button>
-        <button className="btn-icon" onClick={resetSongSemitone} style={{fontSize:"0.7rem"}}>↺</button>
-        <span className="ctrl-song-name">{currentSong?currentSong.title:"—"}</span>
-        <div className="toggle-group">
-          <button className={`toggle-btn ${!useFlats?"active":""}`} onClick={()=>setUseFlats(false)}>♯</button>
-          <button className={`toggle-btn ${useFlats?"active":""}`} onClick={()=>setUseFlats(true)}>♭</button>
-        </div>
-      </div>
-      <div className="sl-ctrl-row">
-        <div className="toggle-group">
-          <button className={`toggle-btn ${!nashville?"active":""}`} onClick={()=>setNashville(false)}>Std</button>
-          <button className={`toggle-btn ${nashville?"active":""}`} onClick={()=>setNashville(true)}>NNS</button>
-        </div>
+      <div className="sl-ctrl-row" style={{alignItems:"center",justifyContent:"space-between",flexWrap:"wrap"}}>
+        <span className="ctrl-song-name" style={{fontWeight:700}}>{currentSong?currentSong.title:"—"}</span>
         <div className="toggle-group">
           <button className={`toggle-btn ${displayMode==="lyrics"?"active":""}`} onClick={()=>setDisplayMode("lyrics")}>🎤 Lyrics</button>
           <button className={`toggle-btn ${displayMode==="chords"?"active":""}`} onClick={()=>setDisplayMode("chords")}>🎸 Chords</button>
@@ -750,6 +790,7 @@ export default function SetlistPage({ songs, setSongs, programs }) {
         .section-btn-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
         .section-add-btn { padding: 7px 13px; border-radius: 20px; border: 1.5px solid var(--border); background: white; color: var(--text2); font-size: .72rem; font-weight: 700; cursor: pointer; transition: all .15s; box-shadow: var(--shadow-sm); }
         .section-add-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+        .selection-helper { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; font-size: .82rem; color: var(--muted); }
         .arrangement-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
         .arr-pill { padding: 6px 14px; border-radius: 20px; border: 1.5px solid var(--accent); background: var(--accent-light); color: var(--accent); font-size: .72rem; font-weight: 700; cursor: pointer; transition: all .15s; }
         .arr-pill-hidden { border-color: var(--border); background: var(--bg); color: var(--muted); border-style: dashed; text-decoration: line-through; opacity: .7; }
@@ -792,8 +833,8 @@ export default function SetlistPage({ songs, setSongs, programs }) {
           setlistSongs={setlistSongs}
           currentIndex={fsIndex}
           onIndexChange={handleFsIndexChange}
-          useFlats={useFlats}
-          nashville={nashville}
+          useFlats={false}
+          nashville={false}
           displayMode={displayMode}
           onClose={()=>setFullscreen(false)}
         />
@@ -805,7 +846,7 @@ export default function SetlistPage({ songs, setSongs, programs }) {
         <main className="main">
           {currentSong ? (
             <>
-              <SongDisplay song={currentSong} useFlats={useFlats} nashville={nashville} displayMode={displayMode} />
+              <SongDisplay song={currentSong} useFlats={false} nashville={false} displayMode={displayMode} />
               {setlistSongs.length > 1 && (
                 <div className="desktop-song-nav">
                   <button className="dsn-btn" disabled={currentSetlistIndex<=0} onClick={()=>setCurrentIndexInSetlist(currentSetlistIndex-1)}>
@@ -843,7 +884,7 @@ export default function SetlistPage({ songs, setSongs, programs }) {
             </div>
             <main className="main" style={{flex:1,paddingBottom:"80px"}}>
               {currentSong ? (
-                <SongDisplay song={currentSong} useFlats={useFlats} nashville={nashville} displayMode={displayMode}/>
+                <SongDisplay song={currentSong} useFlats={false} nashville={false} displayMode={displayMode}/>
               ) : (
                 <div className="empty-state"><div className="empty-icon">🎸</div><div className="empty-text">No song selected</div></div>
               )}
