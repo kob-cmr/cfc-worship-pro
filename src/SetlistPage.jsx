@@ -674,7 +674,7 @@ export default function SetlistPage({ songs, setSongs, programs }) {
                     </div>
                     <span className="song-row-key">
                       {(()=>{
-                        const root=transposeNote(song.key.replace("m",""),song.semitones||0,useFlats);
+                        const root=transposeNote(song.key.replace("m",""),song.semitones||0,false);
                         const k=root+(song.key.includes("m")&&!song.key.includes("maj")?"m":"");
                         return k+(song.semitones?` ${song.semitones>0?"+":""}${song.semitones}`:"");
                       })()}
