@@ -201,7 +201,7 @@ function renderSections({ sections, displayMode, semitones, useFlats, nashville,
               const raw = line.trim();
               const sectionMarker = parseSectionMarker(raw);
               if (sectionMarker !== null) {
-                return <div key={i} className={fsMode?"fs-section-marker":"section-marker"} style={zoom?{fontSize:`${zoom}rem`}:{}}>{sectionMarker}</div>;
+                return null;
               }
               const keyChange = parseKeyChange(raw);
               if (keyChange !== null) {
@@ -228,7 +228,7 @@ function renderSections({ sections, displayMode, semitones, useFlats, nashville,
               const raw = line.trim();
               const sectionMarker = parseSectionMarker(raw);
               if (sectionMarker !== null) {
-                return <div key={i} className={fsMode?"fs-section-marker":"section-marker"} style={zoom?{fontSize:`${zoom}rem`}:{}}>{sectionMarker}</div>;
+                return null;
               }
               const keyChange = parseKeyChange(raw);
               if (keyChange !== null) {
@@ -540,8 +540,8 @@ function SongEditor({ song, onSave, onCancel }) {
           </div>
         </div>
 
-        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "#F9FAFC", padding: "18px" }}>
-          <div style={{ position: "relative", flex: 1, minHeight: 260 }}>
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "#F9FAFC", padding: "18px", gap: 16, overflow: "hidden" }}>
+          <div style={{ position: "relative", flex: "1 1 260px", minHeight: 260, overflow: "hidden" }}>
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1 }}>
               {activePaneSections.map(sec => {
                 if (sec.label === "Full Song") return null;
@@ -558,17 +558,17 @@ function SongEditor({ song, onSave, onCancel }) {
             <textarea
               id={`song-editor-${activePane}`}
               className="sec-textarea"
-              style={{ position: "relative", zIndex: 2, flex: 1, minHeight: 260, width: "100%", resize: "vertical", lineHeight: "22px", fontSize: ".88rem", padding: "12px 14px" }}
+              style={{ position: "absolute", inset: 0, zIndex: 2, width: "100%", height: "100%", resize: "none", lineHeight: "22px", fontSize: ".88rem", padding: "12px 14px", overflow: "auto" }}
               value={form[activePane] || ""}
               onChange={e => set(activePane, e.target.value)}
               placeholder={activePlaceholder[activePane]}
             />
           </div>
 
-          <div style={{ marginTop: 16, padding: 12, background: "white", borderRadius: 12, border: "1px solid #E5E7EB" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ padding: 12, background: "white", borderRadius: 12, border: "1px solid #E5E7EB", minHeight: "80px", overflow: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8, flexWrap: "wrap" }}>
               <div style={{ fontSize: ".72rem", fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: "#475569" }}>Arrangement</div>
-              <div style={{ fontSize: ".78rem", color: "#64748B" }}>Detected from lyrics, chords, and drum notes</div>
+              <div style={{ fontSize: ".65rem", color: "#64748B", textAlign: "right" }}>Detected</div>
             </div>
             <div className="arrangement-pills" style={{ flexWrap: "wrap" }}>
               {visibleSectionLabels.length > 0 ? visibleSectionLabels.map(label => (
@@ -580,10 +580,8 @@ function SongEditor({ song, onSave, onCancel }) {
               )) : <div style={{ color: "#64748B", fontSize: ".88rem" }}>No section markers found. Add [Intro], [Verse], [Chorus], etc.</div>}
             </div>
           </div>
-        </div>
 
-        <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", background: "white", padding: "14px 18px" }}>
-          <div style={{ marginBottom: 10 }}>
+          <div style={{ padding: 12, background: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "auto" }}>
             <div style={{ fontSize: ".72rem", fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: "#475569", marginBottom: 8 }}>Quick Add Section</div>
             <div className="section-btn-row" style={{ flexWrap: "wrap", gap: 8 }}>
               {SECTION_TYPES.map(type => (
@@ -591,6 +589,9 @@ function SongEditor({ song, onSave, onCancel }) {
               ))}
             </div>
           </div>
+        </div>
+
+        <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", background: "white", padding: "14px 18px" }}>
           <button className="btn-full" onClick={saveData}>💾 Save Song</button>
         </div>
       </div>
@@ -956,6 +957,20 @@ export default function SetlistPage({ songs, setSongs, programs }) {
           .btn-full { padding: 14px !important; }
           .sidebar-tab { padding: 14px 8px !important; min-height: 52px !important; }
           .sec-textarea { font-size: .82rem !important; }
+        }
+        @media (max-width: 768px) {
+          .editor-overlay > div { padding: 0 !important; }
+          .arrangement-pills { gap: 4px !important; }
+          .section-btn-row { gap: 4px !important; }
+          .arr-pill { padding: 5px 10px !important; font-size: .65rem !important; }
+          .section-add-btn { padding: 6px 10px !important; font-size: .65rem !important; }
+        }
+        @media (max-width: 480px) {
+          .editor-overlay > div { max-height: 100vh !important; }
+          .arr-pill { padding: 4px 8px !important; font-size: .6rem !important; }
+          .section-add-btn { padding: 5px 8px !important; font-size: .6rem !important; flex: 0 0 calc(50% - 4px); }
+          .arrangement-pills { gap: 3px !important; }
+          .section-btn-row { gap: 3px !important; }
         }
       `}</style>
 
